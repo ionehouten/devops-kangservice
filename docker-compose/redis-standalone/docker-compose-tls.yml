@@ -1,0 +1,55 @@
+
+name: redis-secure
+
+services:
+  redis-server:
+    container_name: redis-server
+    image: redis:8.0-alpine
+    restart: always
+    command: redis-server /usr/local/etc/redis/redis.conf 
+    environment:
+      TZ: Asia/Jakarta
+    sysctls:
+      net.core.somaxconn: 65535
+    ports:
+      - ${REDIS_PORT}:6379
+      - ${REDIS_TLS_PORT}:6380
+    volumes:
+      - ./certs:/certs
+      - ./redis-tls.conf:/usr/local/etc/redis/redis.conf
+      - ./users.acl:/usr/local/etc/redis/users.acl
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/redis:/data
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --tls --cacert /certs/ca.crt -u rediss://admin:${REDIS_ADMIN_PASSWORD}@localhost:6380 ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - default
+  
+  redis-exporter:
+    container_name: redis-exporter
+    image: oliver006/redis_exporter
+    ports:
+      - "9121:9121"
+    environment:
+      REDIS_ADDR: rediss://redis-server:6380
+      REDIS_USER: admin
+      REDIS_PASSWORD: ${REDIS_ADMIN_PASSWORD}
+    volumes:
+      - ./certs:/certs:ro
+    command:
+      - "--tls-ca-cert-file=/certs/ca.crt"
+      - "--tls-client-cert-file=/certs/redis.crt"  # Optional, if your Redis server requires a client certificate
+      - "--tls-client-key-file=/certs/redis.key"   # Optional, if your Redis server requires a client key
+      # - "--skip-tls-verification"     
+    networks:
+      - default
+
+networks:
+  default:
+    name: core
