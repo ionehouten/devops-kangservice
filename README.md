@@ -1,158 +1,77 @@
-# DevOps Examples Repository
+# DevOps KangService
 
-A collection of practical **DevOps infrastructure examples** including
-Docker, Docker Compose, Kubernetes, and Terraform.
+[![Docker](https://img.shields.io/badge/Docker-Containers-blue?logo=docker)](https://www.docker.com/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-Orchestration-blue?logo=kubernetes)](https://kubernetes.io/)
+[![Ansible](https://img.shields.io/badge/Ansible-Automation-red?logo=ansible)](https://www.ansible.com/)
+[![Terraform](https://img.shields.io/badge/Terraform-Infrastructure-purple?logo=terraform)](https://www.terraform.io/)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-This repository is intended as a reference for developers and DevOps
-engineers who want to quickly learn or bootstrap environments using
-modern container and infrastructure tooling.
+A personal **DevOps learning and experimentation repository** containing various infrastructure and automation examples.
 
-------------------------------------------------------------------------
+This repository serves as a **DevOps playground and infrastructure reference** for containerization, orchestration, and automation tools.
 
-## 📦 Repository Contents
+---
 
-This repository includes examples such as:
+## Repository Structure
 
--   Docker images for various applications
--   Docker Compose setups for multi-container environments
--   Kubernetes manifests for container orchestration
--   Terraform infrastructure examples
--   DevOps configuration templates
+```
+devops-kangservice
+│
+├── docker/
+│
+├── docker-compose/
+│
+├── kubernetes/
+│
+├── ansible/
+│
+└── terraform/
+```
 
-------------------------------------------------------------------------
+Each directory contains practical examples that can be used for **learning, testing, and experimentation**.
 
-## 🐳 Docker Examples
+---
 
-Example directory structure:
+## Quick Navigation
 
-    docker/
-     ├── node-app/
-     │    ├── Dockerfile
-     │    └── app.js
-     ├── python-app/
-     │    ├── Dockerfile
-     │    └── main.py
-     └── nginx/
-          └── Dockerfile
+- [Docker Examples](docker/)
+- [Docker Compose Stacks](docker-compose/)
+- [Kubernetes Manifest](kubernetes/)
+- [Ansible Automation](ansible/)
+- [Terraform Infrastructure](terraform/)
 
-Build an image:
+Each project directory contains its own **README with setup instructions**.
 
-    docker build -t example-image .
+---
 
-Run container:
+## Technologies Used
 
-    docker run -p 8080:8080 example-image
+This repository includes examples using:
 
-------------------------------------------------------------------------
+- Docker
+- Docker Compose
+- Redis
+- Kubernetes
+- Ansible
+- Terraform
+- Linux shell scripting
 
-## ⚙️ Docker Compose Examples
+---
 
-Docker Compose is used for running multi-container applications.
+## Use Cases
 
-Example:
+This repository can be used for:
 
-    docker-compose/
-     ├── web-db/
-     │    └── docker-compose.yml
-     └── redis-stack/
-          └── docker-compose.yml
+- DevOps learning
+- Infrastructure experimentation
+- Local development environments
+- DevOps portfolio projects
+- Infrastructure automation testing
 
-Run services:
+---
 
-    docker compose up -d
-
-Stop services:
-
-    docker compose down
-
-------------------------------------------------------------------------
-
-## ☸️ Kubernetes Examples
-
-Kubernetes manifests for deploying applications.
-
-Structure:
-
-    kubernetes/
-     ├── deployment/
-     │    └── app-deployment.yaml
-     ├── service/
-     │    └── app-service.yaml
-     └── ingress/
-          └── ingress.yaml
-
-Deploy resources:
-
-    kubectl apply -f kubernetes/
-
-Check running resources:
-
-    kubectl get pods
-
-------------------------------------------------------------------------
-
-## 🌍 Terraform Examples
-
-Terraform examples for provisioning infrastructure.
-
-Structure:
-
-    terraform/
-     ├── aws/
-     │    ├── main.tf
-     │    ├── variables.tf
-     │    └── outputs.tf
-     └── gcp/
-          └── main.tf
-
-Initialize Terraform:
-
-    terraform init
-
-Plan infrastructure:
-
-    terraform plan
-
-Apply infrastructure:
-
-    terraform apply
-
-------------------------------------------------------------------------
-
-## 🎯 Purpose
-
-This repository helps with:
-
--   Learning DevOps tools
--   Testing infrastructure configurations
--   Building reusable templates
--   Sharing deployment examples
-
-------------------------------------------------------------------------
-
-## 🧰 Technologies Covered
-
--   Docker
--   Docker Compose
--   Kubernetes
--   Terraform
--   Containerized Development
-
-------------------------------------------------------------------------
-
-## 🤝 Contributing
-
-Contributions are welcome.
-
-Steps:
-
-1.  Fork the repository
-2.  Create a new branch
-3.  Add your example
-4.  Submit a pull request
-
-------------------------------------------------------------------------
-
-## 📄 License
+## License
 
 MIT License
+
+
