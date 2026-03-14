@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: redis-benchmark-runner
+  namespace: benchmark
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: redis-benchmark-runner
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: redis-benchmark
+          image: redis:7.2
+          command: ["/bin/sh", "-c", "/scripts/script.sh"]
+          envFrom:
+            - secretRef:
+                name: redis-secret
+          volumeMounts:
+            - name: benchmark-script
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: benchmark-script
+          configMap:
+            name: redis-benchmark-script
+            defaultMode: 0755

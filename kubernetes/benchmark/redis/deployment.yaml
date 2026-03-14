@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-benchmark-runner
+  namespace: benchmark
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-benchmark-runner
+  template:
+    metadata:
+      labels:
+        app: redis-benchmark-runner
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: redis-benchmark
+          image: redis:7.2
+          # command: ["/bin/sh", "-c", "ls -lrtha && tail -f /dev/null"]
+          command: ["/bin/sh", "-c", "/scripts/script.sh && tail -f /dev/null"]
+          envFrom:
+            - secretRef:
+                name: redis-secret
+          volumeMounts:
+            - name: benchmark-script
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: benchmark-script
+          configMap:
+            name: redis-benchmark-script
+            defaultMode: 0755
