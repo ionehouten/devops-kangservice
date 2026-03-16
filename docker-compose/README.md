@@ -1,8 +1,7 @@
-# Docker Compose Examples
+# Docker Compose
 
 This directory contains various **Docker Compose infrastructure stacks**.
 
-Each stack is designed for learning, testing, and local development environments.
 
 ---
 
