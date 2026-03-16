@@ -1,0 +1,17 @@
+# Format: user <username> [on|off] [>password] [~pattern] [+command]
+
+# Please Update: $REDIS_ADMIN_PASSWORD,$REDIS_READONLY_PASSWORD dan $REDIS_APP_PASSWORD
+
+# Admin user
+user admin on >$REDIS_ADMIN_PASSWORD ~* +@all
+
+# Read-only user
+user readonly on >$REDIS_READONLY_PASSWORD ~* +get +info +exists +ping +scan
+
+user appadmin on >$REDIS_APP_PASSWORD ~* +@write +@read -@dangerous -FLUSHALL -FLUSHDB -CONFIG -EVAL
+
+# Limited app user
+user appuser on >$REDIS_APP_PASSWORD ~app:* +get +set +del +expire +ttl
+
+# Block default (disable anonymous access)
+user default off

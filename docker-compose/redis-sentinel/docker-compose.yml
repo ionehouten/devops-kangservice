@@ -1,0 +1,204 @@
+
+name: redis-ha
+
+services:
+  redis-master:
+    hostname: redis-master
+    container_name: redis-master
+    user: "999:999"
+    image: redis:7.2-alpine
+    restart: always
+    # command: redis-server /usr/local/etc/redis/redis.conf  --replica-announce-ip ${HOST_IP} --replica-announce-port 6379
+    command: redis-server /usr/local/etc/redis/redis.conf --replica-announce-ip ${HOST_IP} --replica-announce-port 6380
+    env_file: .env  
+    sysctls:
+      net.core.somaxconn: 65535
+    ports:
+      - 6379:6379
+      - 6380:6380
+    volumes:
+      - ./certs:/certs:ro
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      - ./users.acl:/usr/local/etc/redis/users.acl
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/redis-master:/data
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 128M
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_ADMIN_PASSWORD} -p 6379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.80.7
+
+  redis-replica-1:
+    container_name: redis-replica-1
+    user: "999:999"
+    image: redis:7.2-alpine
+    restart: always
+    # command: redis-server /usr/local/etc/redis/redis.conf  --replicaof redis-master 6379  --replica-announce-ip ${HOST_IP} --replica-announce-port 16379
+    command: redis-server /usr/local/etc/redis/redis.conf  --replicaof redis-master 6380  --replica-announce-ip ${HOST_IP} --replica-announce-port 16380
+    env_file: .env
+    sysctls:
+      net.core.somaxconn: 65535
+    ports:
+      - 16379:6379
+      - 16380:6380
+    volumes:
+      - ./certs:/certs:ro
+      - ./redis-replica.conf:/usr/local/etc/redis/redis.conf
+      - ./users.acl:/usr/local/etc/redis/users.acl
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/redis-replica-1:/data
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 128M
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_ADMIN_PASSWORD} -p 6379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.80.8
+
+  redis-replica-2:
+    container_name: redis-replica-2
+    user: "999:999"
+    image: redis:7.2-alpine
+    restart: always
+    # command: redis-server /usr/local/etc/redis/redis.conf  --replicaof redis-master 6379  --replica-announce-ip ${HOST_IP} --replica-announce-port 16381
+    command: redis-server /usr/local/etc/redis/redis.conf  --replicaof redis-master 6380  --replica-announce-ip ${HOST_IP} --replica-announce-port 16382
+    env_file: .env
+    sysctls:
+      net.core.somaxconn: 65535
+    ports:
+      - 16381:6379
+      - 16382:6380
+    volumes:
+      - ./certs:/certs:ro
+      - ./redis-replica.conf:/usr/local/etc/redis/redis.conf
+      - ./users.acl:/usr/local/etc/redis/users.acl
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/redis-replica-2:/data
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 128M
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_ADMIN_PASSWORD} -p 6379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.80.9
+
+  sentinel-1:
+    container_name: sentinel-1
+    image: redis:7.2-alpine
+    command: >
+      redis-server /usr/local/etc/redis/sentinel-1.conf --sentinel
+    # debug
+    # command: sh -c 'tail -f /dev/null'
+    env_file: .env
+    depends_on:
+      - redis-master
+    ports:
+      - 26380:26380
+    volumes:
+      - ./sentinel:/usr/local/etc/redis
+      - ./certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_SENTINEL_PASSWORD} -p 26379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.80.10
+
+  sentinel-2:
+    container_name: sentinel-2
+    image: redis:7.2-alpine
+    command: >
+      redis-server /usr/local/etc/redis/sentinel-2.conf --sentinel
+    env_file: .env
+    depends_on:
+      - redis-master
+    ports:
+      - 26381:26380
+    volumes:
+      - ./sentinel:/usr/local/etc/redis
+      - ./certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_SENTINEL_PASSWORD} -p 26379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.80.11
+
+  sentinel-3:
+    container_name: sentinel-3
+    image: redis:7.2-alpine
+    command: >
+      redis-server /usr/local/etc/redis/sentinel-3.conf --sentinel
+    env_file: .env
+    depends_on:
+      - redis-master
+    ports:
+      - 26382:26380
+    volumes:
+      - ./sentinel:/usr/local/etc/redis
+      - ./certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_SENTINEL_PASSWORD} -p 26379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.80.12
+
+  redis-exporter:
+    container_name: redis-exporter
+    build:
+      context: .
+      dockerfile: RedisExporter.Dockerfile
+    ports:
+      - "9121:9121"
+    env_file: .env
+    environment:
+      SENTINEL_HOSTS: sentinel-1,sentinel-2,sentinel-3
+      SENTINEL_PORT: 26379
+      SENTINEL_USER: admin
+      SENTINEL_PASSWORD: ${REDIS_SENTINEL_PASSWORD}
+      MASTER_NAME: mymaster
+      REDIS_USER: admin
+      REDIS_PASSWORD: ${REDIS_ADMIN_PASSWORD}
+    volumes:
+      - ./certs:/certs:ro
+      # - ./redis-discover.sh:/redis-discover.sh
+    # entrypoint: ["/bin/sh", "/redis-discover.sh"]
+    # command:
+    #   - "--tls-ca-cert-file=/certs/ca.crt"
+    #   - "--tls-client-cert-file=/certs/redis.crt"  # Optional, if your Redis server requires a client certificate
+    #   - "--tls-client-key-file=/certs/redis.key"   # Optional, if your Redis server requires a client key
+    #   - "--skip-tls-verification"     
+    networks:
+      - default
+
+# networks:
+#   default:
+#     name: core
+networks:
+  default:
+    name: core
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.80.0/24
