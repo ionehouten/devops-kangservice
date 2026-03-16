@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pgbench-job
+  namespace: benchmark
+  labels:
+    app: pgbench
+    component: benchmark-runner
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: pgbench
+        component: benchmark-runner
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: benchmark-runner
+          image: postgres:17-alpine
+          command: ["/bin/sh", "-c", "/scripts/run-benchmark-job.sh"]
+          envFrom:
+            - secretRef:
+                name: pgbench-secret
+          volumeMounts:
+            - name: benchmark-scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: logs
+              mountPath: /tmp
+            - name: results-volume
+              mountPath: /benchmark-results
+          # resources:
+          #   requests:
+          #     memory: "512Mi"
+          #     cpu: "500m"
+          #   limits:
+          #     memory: "1Gi"
+          #     cpu: "1000m"
+
+      volumes:
+        - name: benchmark-scripts
+          configMap:
+            name: pgbench-scripts
+            defaultMode: 0744
+        - name: logs
+          emptyDir: {}
+        - name: results-volume
+          emptyDir: {}
+

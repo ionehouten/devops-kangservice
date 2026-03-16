@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbench-job
+  namespace: benchmark
+  labels:
+    app: pgbench
+    component: benchmark-runner
+spec:
+  selector:
+    matchLabels:
+      app: pgbench
+  template:
+    metadata:
+      labels:
+        app: pgbench
+    component: benchmark-runner
+    spec:
+      containers:
+        - name: benchmark-runner
+          image: postgres:17-alpine
+          # command: ["/bin/sh", "-c", "ls -lrtha && tail -f /dev/null"]
+          command: ["/bin/sh", "-c", "/scripts/run-benchmark-job.sh && tail -f /dev/null"]
+          envFrom:
+          - secretRef:
+              name: pgbench-secret
+          volumeMounts:
+            - name: benchmark-scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: logs
+              mountPath: /tmp
+            - name: results-volume
+              mountPath: /benchmark-results
+          # resources:
+          #   requests:
+          #     memory: "512Mi"
+          #     cpu: "500m"
+          #   limits:
+          #     memory: "1Gi"
+          #     cpu: "1000m"
+        
+      volumes:
+        - name: benchmark-scripts
+          configMap:
+            name: pgbench-scripts
+            defaultMode: 0744
+        - name: logs
+          emptyDir: {}
+        - name: results-volume
+          emptyDir: {}
+

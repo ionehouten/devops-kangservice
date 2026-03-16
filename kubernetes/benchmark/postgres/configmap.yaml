@@ -1,0 +1,568 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbench-scripts
+  namespace: benchmark
+  labels:
+    app: pgbench
+    type: pgbench-benchmark
+data:
+  # ==========================================
+  # KUBERNETES JOB SCRIPT: run-benchmark-job.sh
+  # ==========================================
+  run-benchmark-job.sh: |
+    #!/bin/bash
+    
+    # Main entrypoint untuk benchmark job di Kubernetes
+    
+    echo "Starting CNPG Benchmark Job..."
+    echo "=============================="
+    
+    # Load configuration from ConfigMap
+    # if [ -f /config/benchmark-config.env ]; then
+    #     source /config/benchmark-config.env
+    # fi
+    
+    # Set default values
+    DB_HOST=${DB_HOST:-"${CNPG_CLUSTER_NAME}-rw"}
+    DB_PORT=${DB_PORT:-5432}
+    DB_NAME=${DB_NAME:-"benchmark_db"}
+    SCALE_FACTOR=${SCALE_FACTOR:-100}
+    
+    # Wait for database to be ready
+    echo "Waiting for database to be ready..."
+    for i in {1..30}; do
+        if pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER"; then
+            echo "Database is ready!"
+            break
+        fi
+        echo "Attempt $i/30: Database not ready, waiting..."
+        sleep 10
+    done
+    
+    # Run the benchmark
+    echo "Starting benchmark..."
+    /scripts/benchmark.sh
+    
+    # Run monitoring in background if enabled
+    if [ "${ENABLE_MONITORING:-true}" = "true" ]; then
+        echo "Starting monitoring..."
+        /scripts/monitor.sh &
+        MONITOR_PID=$!
+    fi
+    
+    # Run query tests
+    echo "Running query tests..."
+    /scripts/query-test.sh
+    
+    # Wait for monitoring to finish
+    if [ ! -z "$MONITOR_PID" ]; then
+        wait $MONITOR_PID
+    fi
+    
+    # Analyze results
+    echo "Analyzing results..."
+    /scripts/analyze-results.sh
+    
+    echo "Benchmark job completed successfully!"
+  
+  # ==========================================
+  # SCRIPT UTAMA: benchmark.sh
+  # ==========================================
+  benchmark.sh: |
+    #!/bin/bash
+    
+    # ==========================================
+    # SCRIPT BENCHMARK CLOUDNATIVE POSTGRESQL (CNPG)
+    # ==========================================
+    
+    # Konfigurasi
+    DB_HOST=${DB_HOST:-"localhost"}
+    DB_PORT=${DB_PORT:-5432}
+    DB_NAME=${DB_NAME:-"benchmark_db"}
+    DB_USER=${DB_USER:-"postgres"}
+    DB_PASSWORD=${DB_PASSWORD:-""}
+    SCALE_FACTOR=${SCALE_FACTOR:-50}
+    DURATION=${DURATION:-300}
+    CLIENTS_LIST="1 10 25 50 100"
+    THREADS_LIST="1 4 8"
+    
+    # Warna untuk output
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m'
+    
+    # Fungsi untuk logging
+    log_info() {
+        echo -e "${BLUE}[INFO]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
+    }
+    
+    log_success() {
+        echo -e "${GREEN}[SUCCESS]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
+    }
+    
+    log_error() {
+        echo -e "${RED}[ERROR]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
+    }
+    
+    # Setup koneksi database
+    setup_connection() {
+        export PGPASSWORD="$DB_PASSWORD"
+        
+        # Test koneksi dengan retry
+        local max_retries=10
+        local retry_count=0
+        
+        while [ $retry_count -lt $max_retries ]; do
+            if psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c "SELECT 1;" &> /dev/null; then
+                log_success "Koneksi database berhasil"
+                return 0
+            fi
+            
+            log_info "Menunggu database siap... ($((retry_count+1))/$max_retries)"
+            sleep 10
+            retry_count=$((retry_count+1))
+        done
+        
+        log_error "Tidak dapat terhubung ke database setelah $max_retries percobaan"
+        return 1
+    }
+    
+    # Setup database benchmark
+    setup_database() {
+        log_info "Menghapus database lama jika ada..."
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres \
+            -c "DROP DATABASE IF EXISTS $DB_NAME;" 2>/dev/null || true
+        
+        log_info "Membuat database baru..."
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres \
+            -c "CREATE DATABASE $DB_NAME;"
+        
+        log_info "Menginisialisasi database pgbench dengan scale factor $SCALE_FACTOR..."
+        pgbench -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -i -s "$SCALE_FACTOR" "$DB_NAME"
+        
+        log_success "Database benchmark siap"
+    }
+    
+    # Informasi sistem
+    get_system_info() {
+        log_info "Mengumpulkan informasi sistem..."
+        
+        echo -e "\n${BLUE}=== INFORMASI DATABASE ===${NC}"
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" << EOF
+    SELECT 
+        version() as postgres_version,
+        current_setting('max_connections') as max_connections,
+        current_setting('shared_buffers') as shared_buffers,
+        current_setting('effective_cache_size') as effective_cache_size,
+        current_setting('work_mem') as work_mem,
+        current_setting('maintenance_work_mem') as maintenance_work_mem,
+        current_setting('checkpoint_completion_target') as checkpoint_completion_target,
+        current_setting('wal_buffers') as wal_buffers,
+        current_setting('default_statistics_target') as default_statistics_target;
+    EOF
+        
+        echo -e "\n${BLUE}=== INFORMASI TABLE SIZES ===${NC}"
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" << EOF
+    SELECT
+        schemaname,
+        tablename,
+        pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as total_size
+    FROM pg_tables
+    WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+    ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+    EOF
+    }
+    
+    # Benchmark read-only
+    benchmark_readonly() {
+        local clients=$1
+        local threads=$2
+        
+        log_info "Menjalankan benchmark READ-ONLY: Clients=$clients, Threads=$threads"
+        
+        pgbench -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+            -S \
+            -c "$clients" \
+            -j "$threads" \
+            -T "$DURATION" \
+            -r 
+    }
+    
+    # Benchmark read-write
+    benchmark_readwrite() {
+        local clients=$1
+        local threads=$2
+        
+        log_info "Menjalankan benchmark READ-WRITE: Clients=$clients, Threads=$threads"
+        
+        pgbench -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+            -N \
+            -c "$clients" \
+            -j "$threads" \
+            -T "$DURATION" \
+            -r 
+    }
+    
+    # Benchmark tpc-b-like
+    benchmark_tpcb() {
+        local clients=$1
+        local threads=$2
+        
+        log_info "Menjalankan benchmark TPC-B-like: Clients=$clients, Threads=$threads"
+        
+        pgbench -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+            -b tpcb-like \
+            -c "$clients" \
+            -j "$threads" \
+            -T "$DURATION" \
+            -r 
+    }
+    
+    # Benchmark latency
+    benchmark_latency() {
+        log_info "Menjalankan benchmark LATENCY dengan 1 client..."
+        
+        pgbench -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+            -S \
+            -c 1 \
+            -j 1 \
+            -T 60 \
+            -r 2>&1
+    }
+    
+    # Concurrent connection test
+    test_concurrent_connections() {
+        local max_conn=100
+        log_info "Testing concurrent connections hingga $max_conn connections..."
+        
+        for i in 1 10 25 50 75 100; do
+            log_info "Testing dengan $i concurrent connections..."
+            pgbench -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+                -S \
+                -c "$i" \
+                -j "$(($i>8?8:$i))" \
+                -T 30 \
+                -r 2>&1 | grep "tps ="
+        done
+    }
+    
+    # Run vacuum analyze
+    run_maintenance() {
+        log_info "Menjalankan VACUUM ANALYZE..."
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+            -c "VACUUM ANALYZE;"
+        log_success "Maintenance selesai"
+    }
+    
+    # Run all benchmarks
+    run_benchmarks() {
+        log_info "Memulai benchmark suite..."
+        
+        # Latency benchmark
+        echo -e "\n${BLUE}=== LATENCY BENCHMARK ===${NC}"
+        benchmark_latency | tee -a /tmp/latency_results.txt
+        
+        # Scalability benchmark
+        echo -e "\n${BLUE}=== SCALABILITY BENCHMARK ===${NC}"
+        
+        for clients in $CLIENTS_LIST; do
+            for threads in $THREADS_LIST; do
+                if [ "$threads" -le "$clients" ]; then
+                    echo -e "\n${GREEN}--- Testing: $clients clients, $threads threads ---${NC}"
+                    
+                    echo -e "\n${YELLOW}1. Read-Only Test${NC}"
+                    benchmark_readonly "$clients" "$threads" | tee -a /tmp/readonly_results.txt
+                    
+                    echo -e "\n${YELLOW}2. Read-Write Test${NC}"
+                    benchmark_readwrite "$clients" "$threads" | tee -a /tmp/readwrite_results.txt
+                    
+                    echo -e "\n${YELLOW}3. TPC-B-like Test${NC}"
+                    benchmark_tpcb "$clients" "$threads" | tee -a /tmp/tpcb_results.txt
+                    
+                    sleep 10
+                fi
+            done
+        done
+        
+        # Concurrent connection test
+        echo -e "\n${BLUE}=== CONCURRENT CONNECTION TEST ===${NC}"
+        test_concurrent_connections | tee -a /tmp/concurrent_results.txt
+    }
+    
+    # Generate summary report
+    generate_report() {
+        local report_file="/tmp/cnpg_benchmark_report_$(date +%Y%m%d_%H%M%S).txt"
+        
+        log_info "Membuat laporan benchmark..."
+        
+        cat > "$report_file" << EOF
+    ============================================
+     LAPORAN BENCHMARK CLOUDNATIVE POSTGRESQL
+    ============================================
+    Tanggal: $(date)
+    Host Database: $DB_HOST:$DB_PORT
+    Database: $DB_NAME
+    Scale Factor: $SCALE_FACTOR
+    Durasi Tes: $DURATION detik
+    
+    HASIL BENCHMARK:
+    EOF
+        
+        # Parse dan tambahkan hasil
+        echo -e "\n=== Read-Only Results ===" >> "$report_file"
+        grep "tps =" /tmp/readonly_results.txt 2>/dev/null >> "$report_file" || echo "No results" >> "$report_file"
+        
+        echo -e "\n=== Read-Write Results ===" >> "$report_file"
+        grep "tps =" /tmp/readwrite_results.txt 2>/dev/null >> "$report_file" || echo "No results" >> "$report_file"
+        
+        echo -e "\n=== TPC-B Results ===" >> "$report_file"
+        grep "tps =" /tmp/tpcb_results.txt 2>/dev/null >> "$report_file" || echo "No results" >> "$report_file"
+        
+        echo -e "\n=== Latency Results ===" >> "$report_file"
+        grep "latency average" /tmp/latency_results.txt 2>/dev/null >> "$report_file" || echo "No results" >> "$report_file"
+        
+        # Save to persistent volume if mounted
+        if [ -d "/benchmark-results" ]; then
+            cp "$report_file" "/benchmark-results/"
+            log_success "Laporan disimpan ke /benchmark-results/"
+        fi
+        
+        # Print report to console
+        cat "$report_file"
+    }
+    
+    # Main function
+    main() {
+        echo -e "${BLUE}"
+        echo "========================================="
+        echo "  CLOUDNATIVE POSTGRESQL BENCHMARK TOOL  "
+        echo "========================================="
+        echo -e "${NC}"
+        
+        # Setup connection
+        if ! setup_connection; then
+            exit 1
+        fi
+        
+        # Setup database
+        setup_database
+        
+        # Get system info
+        get_system_info
+        
+        # Run maintenance
+        run_maintenance
+        
+        # Run benchmarks
+        run_benchmarks
+        
+        # Generate report
+        generate_report
+        
+        log_success "Semua benchmark selesai!"
+    }
+    
+    # Trap untuk cleanup
+    cleanup() {
+        log_info "Cleaning up temporary files..."
+        rm -f /tmp/*_results.txt 2>/dev/null
+    }
+    
+    trap cleanup EXIT
+    
+    # Jalankan main function
+    main "$@"
+  
+  # ==========================================
+  # SCRIPT MONITORING: monitor.sh
+  # ==========================================
+  monitor.sh: |
+    #!/bin/bash
+    
+    # Script monitoring untuk CNPG selama benchmark
+    
+    DB_HOST=${DB_HOST:-"localhost"}
+    DB_PORT=${DB_PORT:-5432}
+    DB_USER=${DB_USER:-"postgres"}
+    DB_PASSWORD=${DB_PASSWORD:-""}
+    INTERVAL=${INTERVAL:-5}
+    DURATION=${DURATION:-300}
+    
+    export PGPASSWORD="$DB_PASSWORD"
+    
+    # Buat header CSV
+    echo "timestamp,active_connections,total_transactions,waiting_locks,total_operations,cache_hit_ratio" > /tmp/monitoring.csv
+    
+    monitor_database() {
+        local end_time=$((SECONDS + DURATION))
+        
+        while [ $SECONDS -lt $end_time ]; do
+            # Ambil metrics dari PostgreSQL
+            metrics=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -t -c "
+                SELECT 
+                    NOW(),
+                    (SELECT count(*) FROM pg_stat_activity WHERE state = 'active'),
+                    (SELECT xact_commit + xact_rollback FROM pg_stat_database WHERE datname = current_database()),
+                    (SELECT count(*) FROM pg_locks WHERE NOT granted),
+                    (SELECT sum(tup_inserted + tup_updated + tup_deleted) FROM pg_stat_database WHERE datname = current_database()),
+                    (SELECT round(blks_hit::numeric / (blks_hit + blks_read) * 100, 2) 
+                     FROM pg_stat_database 
+                     WHERE datname = current_database() AND (blks_hit + blks_read) > 0)
+            " 2>/dev/null)
+            
+            # Format output ke CSV
+            if [ ! -z "$metrics" ]; then
+                echo "$metrics" | sed 's/|/,/g' | sed 's/ //g' >> /tmp/monitoring.csv
+            fi
+            
+            sleep "$INTERVAL"
+        done
+        
+        # Copy ke persistent storage jika ada
+        if [ -d "/benchmark-results" ]; then
+            cp /tmp/monitoring.csv "/benchmark-results/monitoring_$(date +%Y%m%d_%H%M%S).csv"
+        fi
+    }
+    
+    # Jalankan monitoring
+    monitor_database
+  
+  # ==========================================
+  # SCRIPT SIMPLE QUERY TEST: query-test.sh
+  # ==========================================
+  query-test.sh: |
+    #!/bin/bash
+    
+    # Script untuk testing query sederhana
+    
+    DB_HOST=${DB_HOST:-"localhost"}
+    DB_PORT=${DB_PORT:-5432}
+    DB_USER=${DB_USER:-"postgres"}
+    DB_PASSWORD=${DB_PASSWORD:-""}
+    
+    export PGPASSWORD="$DB_PASSWORD"
+    
+    run_query_test() {
+        echo "=== Running Query Tests ==="
+        echo "Timestamp: $(date)"
+        echo ""
+        
+        # Test 1: Simple SELECT
+        echo "Test 1: Simple SELECT query"
+        time psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT COUNT(*) FROM pgbench_accounts;" 2>&1
+        
+        # Test 2: JOIN query
+        echo -e "\nTest 2: JOIN query"
+        time psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "
+            SELECT COUNT(*) 
+            FROM pgbench_accounts a
+            JOIN pgbench_branches b ON a.bid = b.bid;" 2>&1
+        
+        # Test 3: Aggregation query
+        echo -e "\nTest 3: Aggregation query"
+        time psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "
+            SELECT bid, COUNT(*), AVG(abalance), SUM(abalance)
+            FROM pgbench_accounts
+            GROUP BY bid
+            ORDER BY bid;" 2>&1
+        
+        # Test 4: Index scan
+        echo -e "\nTest 4: Index scan query"
+        time psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "
+            EXPLAIN ANALYZE
+            SELECT * FROM pgbench_accounts WHERE aid BETWEEN 1000 AND 2000;" 2>&1
+    }
+    
+    run_query_test
+  
+  
+  # ==========================================
+  # ANALYZE SCRIPT: analyze-results.sh
+  # ==========================================
+  analyze-results.sh: |
+    #!/bin/bash
+    
+    # Script untuk menganalisis hasil benchmark
+    
+    RESULTS_DIR=${RESULTS_DIR:-"/benchmark-results"}
+    
+    analyze_results() {
+        echo "=== ANALYZING BENCHMARK RESULTS ==="
+        echo "Results directory: $RESULTS_DIR"
+        echo ""
+        
+        if [ ! -d "$RESULTS_DIR" ]; then
+            echo "Error: Results directory not found!"
+            exit 1
+        fi
+        
+        # Find result files
+        result_files=$(find "$RESULTS_DIR" -name "*report*.txt" -type f)
+        
+        for file in $result_files; do
+            echo "Analyzing: $(basename $file)"
+            echo "----------------------------------------"
+            
+            # Extract TPS values
+            tps_values=$(grep "tps =" "$file" | awk '{print $3}' | tr '\n' ' ')
+            
+            if [ ! -z "$tps_values" ]; then
+                # Calculate statistics
+                count=$(echo $tps_values | wc -w)
+                sum=$(echo $tps_values | sed 's/ /+/g' | bc)
+                average=$(echo "scale=2; $sum / $count" | bc)
+                
+                echo "Number of tests: $count"
+                echo "Average TPS: $average"
+                echo "All TPS values: $tps_values"
+            else
+                echo "No TPS data found in this file"
+            fi
+            
+            echo ""
+        done
+        
+        # Analyze monitoring data if exists
+        monitor_files=$(find "$RESULTS_DIR" -name "*monitoring*.csv" -type f)
+        
+        for file in $monitor_files; do
+            echo "Monitoring data: $(basename $file)"
+            if command -v awk &> /dev/null; then
+                avg_conn=$(tail -n +2 "$file" | awk -F',' '{sum+=$2} END {print sum/NR}')
+                echo "Average active connections: $avg_conn"
+            fi
+            echo ""
+        done
+    }
+    
+    # Generate summary report
+    generate_summary() {
+        local summary_file="$RESULTS_DIR/summary_$(date +%Y%m%d_%H%M%S).txt"
+        
+        cat > "$summary_file" << EOF
+    BENCHMARK SUMMARY REPORT
+    ========================
+    Generated: $(date)
+    
+    Environment:
+    - Database: ${DB_HOST:-Unknown}
+    - Scale Factor: ${SCALE_FACTOR:-50}
+    
+    Results Summary:
+    $(analyze_results | grep -A2 "Average TPS:")
+    
+    Recommendations:
+    1. Jika TPS < 1000: Pertimbangkan untuk meningkatkan resources
+    2. Jika latency > 100ms: Cek jaringan dan konfigurasi
+    3. Monitor cache hit ratio (> 99% ideal)
+    
+    EOF
+        
+        echo "Summary saved to: $summary_file"
+    }
+    
+    analyze_results
+    generate_summary
