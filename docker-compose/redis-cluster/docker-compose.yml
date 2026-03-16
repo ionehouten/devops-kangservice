@@ -1,0 +1,248 @@
+
+name: redis-cluster
+
+services:
+  redis-node-1:
+    container_name: redis-node-1
+    user: "999:999"
+    image: redis:7.4-alpine
+    restart: always
+    command: redis-server /usr/local/etc/redis/redis.conf  --cluster-announce-ip ${HOST_IP} --cluster-announce-port 7000 --cluster-announce-tls-port 7001 --cluster-announce-bus-port 17000
+    env_file: .env  
+    sysctls:
+      net.core.somaxconn: 65535
+    ports:
+      - 7000:6379
+      - 7001:6380
+      - 17000:16379
+    volumes:
+      - ./certs:/certs:ro
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      - ./users.acl:/usr/local/etc/redis/users.acl
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/redis-node-1:/data
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 128M
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_ADMIN_PASSWORD} -p 6379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.81.11
+
+  redis-node-2:
+    container_name: redis-node-2
+    user: "999:999"
+    image: redis:7.4-alpine
+    restart: always
+    command: redis-server /usr/local/etc/redis/redis.conf --cluster-announce-ip ${HOST_IP} --cluster-announce-port 7002 --cluster-announce-tls-port 7003 --cluster-announce-bus-port 17002
+    env_file: .env  
+    sysctls:
+      net.core.somaxconn: 65535
+    ports:
+      - 7002:6379
+      - 7003:6380
+      - 17002:16379
+    volumes:
+      - ./certs:/certs:ro
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      - ./users.acl:/usr/local/etc/redis/users.acl
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/redis-node-2:/data
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 128M
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_ADMIN_PASSWORD} -p 6379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.81.12
+
+  redis-node-3:
+    container_name: redis-node-3
+    user: "999:999"
+    image: redis:7.4-alpine
+    restart: always
+    command: redis-server /usr/local/etc/redis/redis.conf --cluster-announce-ip ${HOST_IP} --cluster-announce-port 7004 --cluster-announce-tls-port 7005 --cluster-announce-bus-port 17004
+    env_file: .env  
+    sysctls:
+      net.core.somaxconn: 65535
+    ports:
+      - 7004:6379
+      - 7005:6380
+      - 17004:16379
+    volumes:
+      - ./certs:/certs:ro
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      - ./users.acl:/usr/local/etc/redis/users.acl
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/redis-node-3:/data
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 128M
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_ADMIN_PASSWORD} -p 6379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.81.13
+
+  redis-node-4:
+    container_name: redis-node-4
+    user: "999:999"
+    image: redis:7.4-alpine
+    restart: always
+    command: redis-server /usr/local/etc/redis/redis.conf --cluster-announce-ip ${HOST_IP} --cluster-announce-port 7006 --cluster-announce-tls-port 7007 --cluster-announce-bus-port 17006
+    env_file: .env  
+    sysctls:
+      net.core.somaxconn: 65535
+    ports:
+      - 7006:6379
+      - 7007:6380
+      - 17006:16379
+
+    volumes:
+      - ./certs:/certs:ro
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      - ./users.acl:/usr/local/etc/redis/users.acl
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/redis-node-4:/data
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 128M
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_ADMIN_PASSWORD} -p 6379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.81.14
+
+  redis-node-5:
+    container_name: redis-node-5
+    user: "999:999"
+    image: redis:7.4-alpine
+    restart: always
+    command: redis-server /usr/local/etc/redis/redis.conf --cluster-announce-ip ${HOST_IP} --cluster-announce-port 7008 --cluster-announce-tls-port 7009 --cluster-announce-bus-port 17008
+    env_file: .env  
+    sysctls:
+      net.core.somaxconn: 65535
+    ports:
+      - 7008:6379
+      - 7009:6380
+      - 17008:16379
+
+    volumes:
+      - ./certs:/certs:ro
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      - ./users.acl:/usr/local/etc/redis/users.acl
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/redis-node-5:/data
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 128M
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_ADMIN_PASSWORD} -p 6379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.81.15
+
+  redis-node-6:
+    container_name: redis-node-6
+    user: "999:999"
+    image: redis:7.4-alpine
+    restart: always
+    command: redis-server /usr/local/etc/redis/redis.conf --cluster-announce-ip ${HOST_IP} --cluster-announce-port 7010 --cluster-announce-tls-port 7011 --cluster-announce-bus-port 17010
+    env_file: .env  
+    sysctls:
+      net.core.somaxconn: 65535
+    ports:
+      - 7010:6379
+      - 7011:6380
+      - 17010:16379
+
+    volumes:
+      - ./certs:/certs:ro
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      - ./users.acl:/usr/local/etc/redis/users.acl
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/redis-node-6:/data
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 128M
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "redis-cli --user admin -a ${REDIS_ADMIN_PASSWORD} -p 6379 ping | grep PONG || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      default:
+        ipv4_address: 192.168.81.16
+
+  redis-cluster-init:
+    container_name: redis-cluster-init
+    image: redis:7.4-alpine
+    env_file: .env  
+    depends_on:
+      redis-node-1:
+        condition: service_healthy
+      redis-node-2:
+        condition: service_healthy
+      redis-node-3:
+        condition: service_healthy
+      redis-node-4:
+        condition: service_healthy
+      redis-node-5:
+        condition: service_healthy
+      redis-node-6:
+        condition: service_healthy
+    # entrypoint: >
+    #   sh -c "sleep 10; echo yes | redis-cli --cluster create 192.168.81.11:6379 192.168.81.12:6379 192.168.81.13:6379 192.168.81.14:6379 192.168.81.15:6379 192.168.81.16:6379 --cluster-replicas 1 --user admin -a ${REDIS_ADMIN_PASSWORD} "
+    entrypoint: >
+      sh -c "sleep 10; echo yes | redis-cli --cluster create ${HOST_IP}:7000 ${HOST_IP}:7002 ${HOST_IP}:7004 ${HOST_IP}:7006 ${HOST_IP}:7008 ${HOST_IP}:7010 --cluster-replicas 1 --user admin -a ${REDIS_ADMIN_PASSWORD} "
+    networks:
+      default:
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.73.0
+    container_name: redis-exporter
+    restart: always
+    ports:
+      - "9121:9121"
+    command:
+      - '--redis.addr=redis://admin:${REDIS_ADMIN_PASSWORD}@192.168.81.11:6379'
+      - '--redis.password=${REDIS_ADMIN_PASSWORD}'
+      - '--redis.user=admin'
+      - '--is-cluster'
+      - '--web.listen-address=:9121'
+      - '--include-system-metrics'
+      - '--skip-tls-verification'
+    depends_on:
+      redis-node-1:
+        condition: service_healthy
+    networks:
+      default:
+
+
+# networks:
+#   default:
+#     name: core
+networks:
+  default:
+    name: core
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.81.0/24
