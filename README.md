@@ -1,5 +1,9 @@
 # DevOps KangService
 
+<p align="center">
+  <img src="./assets/kangservice-small.png" />
+</p>
+
 > Production-grade DevOps templates, automation scripts, and infrastructure references from real deployments.
 
 > Maintained by [Iwan Setiawan](https://portfolio.kangservice.cloud) — Senior DevOps Engineer · Hybrid Cloud & Platform Infrastructure
