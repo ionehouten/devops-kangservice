@@ -1,0 +1,112 @@
+#cloud-config
+hostname: ${hostname}
+
+users:
+  - name: devops
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: sudo
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${ssh_key}
+
+disable_root: true
+ssh_pwauth: false
+
+package_update: true
+package_upgrade: false
+
+growpart:
+  mode: auto
+  ignore_growroot_disabled: false
+
+resize_rootfs: true
+
+packages:
+  - unattended-upgrades
+  - cloud-guest-utils
+  - util-linux
+
+write_files:
+  - path: /etc/netplan/00-static.yaml
+    permissions: '0644'
+    content: |
+      network:
+        version: 2
+        ethernets:
+          all:
+            match:
+              name: "en*"
+            dhcp4: false
+            addresses:
+              - ${ip}/${netmask}
+            routes:
+              - to: default
+                via: ${gateway}
+            nameservers:
+              addresses:
+                - ${dns}
+
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    permissions: '0644'
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+  - path: /etc/apt/apt.conf.d/50unattended-upgrades
+    permissions: '0644'
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+        "$${distro_id}:$${distro_codename}";
+        "$${distro_id}:$${distro_codename}-security";
+        "$${distro_id}ESMApps:$${distro_codename}-apps-security";
+        "$${distro_id}ESM:$${distro_codename}-infra-security";
+        //"$${distro_id}:$${distro_codename}-updates";
+        //"$${distro_id}:$${distro_codename}-proposed";
+        //"$${distro_id}:$${distro_codename}-backports";
+
+      };
+      Unattended-Upgrade::Automatic-Reboot "false";
+      Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+  
+  - path: /usr/local/bin/setup-disks.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -eux
+      IDX=1
+      for DEV in /dev/vd[b-z]; do
+        echo "Checking device: $DEV" # Debugging
+        [ -b "$DEV" ] || continue
+
+        if lsblk -no MOUNTPOINT "$DEV" | grep -q '/'; then
+          echo "Device $DEV is already mounted" # Debugging
+          continue
+        fi
+
+        if ! blkid "$DEV"; then
+          echo "Formatting $DEV" # Debugging
+          mkfs.ext4 -F "$DEV"
+        fi
+
+        UUID=$(blkid -s UUID -o value "$DEV")
+        MOUNTPOINT="/data/disk$${IDX}"
+
+        mkdir -p "$MOUNTPOINT"
+
+        if ! grep -q "$UUID" /etc/fstab; then
+          echo "UUID=$UUID $MOUNTPOINT ext4 defaults,nofail 0 2" >> /etc/fstab
+        fi
+
+        mount "$MOUNTPOINT"
+        IDX=$((IDX+1))
+      done
+
+runcmd:
+  - netplan generate
+  - netplan apply
+  - timedatectl set-timezone Asia/Jakarta
+  - systemctl enable --now unattended-upgrades
+  - /usr/local/bin/setup-disks.sh
+    
+
