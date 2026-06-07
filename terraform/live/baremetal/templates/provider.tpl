@@ -1,0 +1,3 @@
+provider "libvirt" {
+  uri = "${uri}"
+}
