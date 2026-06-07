@@ -2,7 +2,6 @@ include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
-
 locals {
   env = read_terragrunt_config(find_in_parent_folders("env.hcl"))
 }
@@ -10,10 +9,9 @@ locals {
 dependency "image_base" {
   config_path = "../image-base"
   mock_outputs = {
-    ubuntu_base_path   = "/kvm/storage/ubuntu24-base.qcow2"
+    ubuntu_base_path = "/kvm/storage/ubuntu24-base.qcow2"
   }
 }
-
 
 terraform {
   source = "../../../../modules/baremetal/libvirt-vms"
@@ -22,10 +20,10 @@ terraform {
 inputs = {
 
   ubuntu_base_path = dependency.image_base.outputs.ubuntu_base_path
-  pool_name = local.env.locals.pool_name
-  gateway = local.env.locals.gateway
-  dns = local.env.locals.dns
-  ssh_public_key = local.env.locals.ssh_public_key
+  pool_name        = local.env.locals.pool_name
+  gateway          = local.env.locals.gateway
+  dns              = local.env.locals.dns
+  ssh_public_key   = local.env.locals.ssh_public_key
 
   vms = {
 

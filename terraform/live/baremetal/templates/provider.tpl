@@ -1,3 +1,3 @@
 provider "libvirt" {
-  uri = "${uri}"
+  uri = "${env.uri}"
 }

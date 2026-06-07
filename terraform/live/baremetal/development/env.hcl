@@ -15,10 +15,10 @@ locals {
 
   uri = "qemu:///system"
   # uri = "qemu+sshcmd://<USER>@<HOST>:<SSH_PORT>/system"
-  pool_name = "default"
-  network_name = "default"
-  gateway = "192.168.122.1"
-  dns = "8.8.8.8"
+  pool_name      = "default"
+  network_name   = "default"
+  gateway        = "192.168.122.1"
+  dns            = "8.8.8.8"
   ssh_public_key = "ssh-rsa xxxxx"
 }
 
