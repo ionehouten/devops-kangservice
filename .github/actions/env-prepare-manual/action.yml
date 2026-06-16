@@ -1,0 +1,90 @@
+name: Prepare Environment (Manual)
+description: Prepare deployment environment from explicit user input
+
+inputs:
+  environment:
+    description: Target Environment
+    required: true
+
+outputs:
+  environment:
+    description: Environment
+    value: ${{ steps.prepare.outputs.ENVIRONMENT }}
+
+  environment_suffix:
+    description: Environment Suffix
+    value: ${{ steps.prepare.outputs.ENVIRONMENT_SUFFIX }}
+  
+  image_suffix:
+    description: Image Suffix
+    value: ${{ steps.prepare.outputs.IMAGE_SUFFIX }}
+
+  overlays_path:
+    description: Overlay Path for deploy folder
+    value: ${{ steps.prepare.outputs.OVERLAYS_PATH }}
+
+  
+
+runs:
+  using: composite
+
+  steps:
+    - name: Prepare Environment
+      id: prepare
+      shell: bash
+      run: |
+
+        ENV="${{ inputs.environment }}"
+        REF="${{ github.ref_name }}"
+
+        echo "Target Environment : $ENV"
+        echo "Git Ref            : $REF"
+
+        # Production validation
+        if [[ "$ENV" == "Production" ]] && [[ ! "$REF" =~ ^v[0-9] ]]; then
+          echo "Production deployment requires a release tag."
+          exit 1
+        fi
+
+        # Canary validation
+        if [[ "$ENV" == "Canary" ]] && [[ ! "$REF" =~ ^v.*-(alpha|beta|rc) ]]; then
+          echo "Canary deployment requires alpha/beta/rc tag."
+          exit 1
+        fi
+
+        case "$ENV" in
+
+          Development)
+            echo "ENVIRONMENT=Development" >> $GITHUB_OUTPUT
+            echo "OVERLAYS_PATH=development" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT_SUFFIX=_DEV" >> $GITHUB_OUTPUT
+            echo "IMAGE_SUFFIX=dev" >> $GITHUB_OUTPUT
+            ;;
+
+          Staging)
+            echo "ENVIRONMENT=Staging" >> $GITHUB_OUTPUT
+            echo "OVERLAYS_PATH=staging" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT_SUFFIX=_STG" >> $GITHUB_OUTPUT
+            echo "IMAGE_SUFFIX=stg" >> $GITHUB_OUTPUT
+            ;;
+
+          Canary)
+            echo "ENVIRONMENT=Canary" >> $GITHUB_OUTPUT
+            echo "OVERLAYS_PATH=canary" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT_SUFFIX=_CNY" >> $GITHUB_OUTPUT
+            echo "IMAGE_SUFFIX=cny" >> $GITHUB_OUTPUT
+            ;;
+
+          Production)
+            echo "ENVIRONMENT=Production" >> $GITHUB_OUTPUT
+            echo "OVERLAYS_PATH=production" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT_SUFFIX=_PRD" >> $GITHUB_OUTPUT
+            echo "IMAGE_SUFFIX=prd" >> $GITHUB_OUTPUT
+            ;;
+
+          *)
+            echo "Unsupported environment [$ENV]"
+            exit 1
+            ;;
+
+        esac

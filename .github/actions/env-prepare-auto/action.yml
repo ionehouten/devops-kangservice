@@ -1,0 +1,109 @@
+name: Prepare Environment (Auto)
+description: Determine deployment environment automatically from Git reference
+
+inputs:
+  development_pattern:
+    description: Regex allowed for Development
+    required: false
+    default: "^main$"
+
+  staging_pattern:
+    description: Regex allowed for Staging
+    required: false
+    default: "^staging$"
+
+  canary_pattern:
+    description: Regex allowed for Canary
+    required: false
+    default: "^v.*-(alpha|beta|rc)"
+
+  production_pattern:
+    description: Regex allowed for Production
+    required: false
+    default: "^v[0-9]"
+
+
+outputs:
+  environment:
+    value: ${{ steps.prepare.outputs.ENVIRONMENT }}
+
+  environment_suffix:
+    value: ${{ steps.prepare.outputs.ENVIRONMENT_SUFFIX }}
+  
+  image_suffix:
+    value: ${{ steps.prepare.outputs.IMAGE_SUFFIX }}
+
+  overlays_path:
+    value: ${{ steps.prepare.outputs.OVERLAYS_PATH }}
+  
+
+runs:
+  using: composite
+
+  steps:
+    - name: Prepare Environment
+      id: prepare
+      shell: bash
+      run: |
+
+        REF="${{ github.ref_name }}"
+
+        DEV_PATTERN='${{ inputs.development_pattern }}'
+        STG_PATTERN='${{ inputs.staging_pattern }}'
+        CNY_PATTERN='${{ inputs.canary_pattern }}'
+        PRD_PATTERN='${{ inputs.production_pattern }}'
+
+        if [[ "$REF" =~ $PRD_PATTERN ]]; then
+          ENVIRONMENT="Production"
+
+        elif [[ "$REF" =~ $CNY_PATTERN ]]; then
+          ENVIRONMENT="Canary"
+
+        elif [[ "$REF" =~ $STG_PATTERN ]]; then
+          ENVIRONMENT="Staging"
+
+        elif [[ "$REF" =~ $DEV_PATTERN ]]; then
+          ENVIRONMENT="Development"
+
+        else
+          echo "No environment mapping found for [$REF]"
+          exit 1
+        fi
+
+        echo "Detected Environment: $ENVIRONMENT"
+
+        case "$ENVIRONMENT" in
+
+          Development)
+            echo "ENVIRONMENT=Development" >> $GITHUB_OUTPUT
+            echo "OVERLAYS_PATH=development" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT_SUFFIX=_DEV" >> $GITHUB_OUTPUT
+            echo "IMAGE_SUFFIX=dev" >> $GITHUB_OUTPUT
+            ;;
+
+          Staging)
+            echo "ENVIRONMENT=Staging" >> $GITHUB_OUTPUT
+            echo "OVERLAYS_PATH=staging" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT_SUFFIX=_STG" >> $GITHUB_OUTPUT
+            echo "IMAGE_SUFFIX=stg" >> $GITHUB_OUTPUT
+            ;;
+
+          Canary)
+            echo "ENVIRONMENT=Canary" >> $GITHUB_OUTPUT
+            echo "OVERLAYS_PATH=canary" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT_SUFFIX=_CNY" >> $GITHUB_OUTPUT
+            echo "IMAGE_SUFFIX=cny" >> $GITHUB_OUTPUT
+            ;;
+
+          Production)
+            echo "ENVIRONMENT=Production" >> $GITHUB_OUTPUT
+            echo "OVERLAYS_PATH=production" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT_SUFFIX=_PRD" >> $GITHUB_OUTPUT
+            echo "IMAGE_SUFFIX=prd" >> $GITHUB_OUTPUT
+            ;;
+
+          *)
+            echo "Unsupported environment [$ENVIRONMENT]"
+            exit 1
+            ;;
+        esac

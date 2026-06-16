@@ -1,0 +1,131 @@
+name: Versioning
+description: Create container image version and tags
+
+inputs:
+  registry_image:
+    description: Container Registry Path
+    required: true
+
+  image_suffix:
+    description: Optional image suffix
+    required: false
+
+outputs:
+  short_sha:
+    description: Commit SHA
+    value: ${{ steps.version.outputs.SHORT_SHA }}
+
+  version:
+    description: Version
+    value: ${{ steps.version.outputs.VERSION }}
+
+  image_tag:
+    description: Image Tag
+    value: ${{ steps.version.outputs.IMAGE_TAG }}
+
+  image_tag_latest:
+    description: Latest Image Tag
+    value: ${{ steps.version.outputs.IMAGE_TAG_LATEST }}
+
+  is_release:
+    description: Is Release Tag
+    value: ${{ steps.version.outputs.IS_RELEASE }}
+
+  is_default_branch:
+    description: Is Default Branch
+    value: ${{ steps.version.outputs.IS_DEFAULT_BRANCH }}
+
+runs:
+  using: composite
+
+  steps:
+    - name: Generate Version
+      id: version
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        REGISTRY="${{ inputs.registry_image }}"
+        IMAGE_SUFFIX="${{ inputs.image_suffix }}"
+
+        REF_NAME="${{ github.ref_name }}"
+        REF_TYPE="${{ github.ref_type }}"
+        DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+
+        SHORT_SHA="${GITHUB_SHA::7}"
+
+        IS_RELEASE=false
+        IS_DEFAULT_BRANCH=false
+
+        if [ -n "$IMAGE_SUFFIX" ]; then
+          IMAGE_SUFFIX="-$IMAGE_SUFFIX"
+        fi
+
+        #################################################
+        # Release Tag
+        #################################################
+
+        if [[ "$REF_TYPE" == "tag" ]]; then
+
+          # if ! [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+          #   echo "Invalid tag format: $REF_NAME"
+          #   echo "Expected: v1.0.0"
+          #   exit 1
+          # fi
+
+          if [[ ! "$REF_NAME" =~ ^v ]]; then
+            echo "Tag must start with 'v'"
+            exit 1
+          fi
+
+          VERSION="$REF_NAME"
+          IS_RELEASE=true
+
+        #################################################
+        # Default Branch
+        #################################################
+
+        elif [[ "$REF_NAME" == "$DEFAULT_BRANCH" ]]; then
+
+          VERSION="$SHORT_SHA"
+          IS_DEFAULT_BRANCH=true
+
+        #################################################
+        # Feature Branch
+        #################################################
+
+        else
+
+          SANITIZED=$(echo "$REF_NAME" \
+            | tr '/' '-' \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's/[^a-z0-9.-]/-/g' \
+            | sed 's/--*/-/g')
+
+          VERSION="branch-$SANITIZED"
+
+        fi
+
+        IMAGE_TAG="$REGISTRY:$VERSION$IMAGE_SUFFIX"
+
+        IMAGE_TAG_LATEST=""
+
+        if [[ "$IS_RELEASE" == "true" ]] || [[ "$IS_DEFAULT_BRANCH" == "true" ]]; then
+          IMAGE_TAG_LATEST="$REGISTRY:latest$IMAGE_SUFFIX"
+        fi
+
+        echo "================================="
+        echo "Ref Type          : $REF_TYPE"
+        echo "Ref Name          : $REF_NAME"
+        echo "Version           : $VERSION"
+        echo "Image Tag         : $IMAGE_TAG"
+        echo "Image Tag Latest  : $IMAGE_TAG_LATEST"
+        echo "================================="
+
+        echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_OUTPUT
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "IMAGE_TAG_LATEST=$IMAGE_TAG_LATEST" >> $GITHUB_OUTPUT
+        echo "IS_RELEASE=$IS_RELEASE" >> $GITHUB_OUTPUT
+        echo "IS_DEFAULT_BRANCH=$IS_DEFAULT_BRANCH" >> $GITHUB_OUTPUT
+
