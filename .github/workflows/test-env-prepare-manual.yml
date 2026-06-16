@@ -1,0 +1,59 @@
+name: Github Action Test | env-prepare-manual
+run-name: Github Action Test | env-prepare-manual - ${{ inputs.environment }} - ${{ github.ref_name }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'Develpment'
+        type: choice
+        options:
+          - Develpment
+          - Staging
+          - Production
+
+
+jobs:
+  GlobalVariable:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.prepare.outputs.environment }}
+      environment_suffix: ${{ steps.prepare.outputs.environment_suffix }}
+      image_suffix: ${{ steps.prepare.outputs.image_suffix }}
+      overlays_path: ${{ steps.prepare.outputs.overlays_path }}
+
+      short_sha: ${{ steps.version.outputs.short_sha }}
+      version: ${{ steps.version.outputs.version }}
+      image_tag: ${{ steps.version.outputs.image_tag }}
+      image_tag_latest: ${{ steps.version.outputs.image_tag_latest }}
+      is_release: ${{ steps.version.outputs.is_release }}
+      is_default_branch: ${{ steps.version.outputs.is_default_branch }}
+      
+    steps:
+      - name: Prepare Environment
+        id: prepare
+        uses: ionehouten/devops-kangservice/.github/actions/env-prepare-manual@main
+        with:
+          environment: ${{ inputs.environment }}
+
+      - name: Image Versioning
+        id: version
+        uses: ionehouten/devops-kangservice/.github/actions/versioning-action@main
+        with:
+          registry_image: ghcr.io/ionehouten/devops-kangservice
+
+      - name: Debug
+        run: |
+          echo "environment: ${{ steps.prepare.outputs.environment }}"
+          echo "environment_suffix: ${{ steps.prepare.outputs.environment_suffix }}"
+          echo "image_suffix: ${{ steps.prepare.outputs.image_suffix }}"
+          echo "overlays_path: ${{ steps.prepare.outputs.overlays_path }}"
+
+          echo "short_sha: ${{ steps.version.outputs.short_sha }}"
+          echo "version: ${{ steps.version.outputs.version }}"
+          echo "image_tag: ${{ steps.version.outputs.image_tag }}"
+          echo "image_tag_latest: ${{ steps.version.outputs.image_tag_latest }}"
+          echo "is_release: ${{ steps.version.outputs.is_release }}"
+          echo "is_default_branch: ${{ steps.version.outputs.is_default_branch }}"
