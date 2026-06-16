@@ -7,10 +7,10 @@ on:
       environment:
         description: 'Environment'
         required: true
-        default: 'Develpment'
+        default: 'Development'
         type: choice
         options:
-          - Develpment
+          - Development
           - Staging
           - Production
 
