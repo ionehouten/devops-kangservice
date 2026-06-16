@@ -21,10 +21,11 @@
 
 ```
 devops-kangservice/
+├── .github/               # Reusable Github Actions & Workflows
 ├── docker-compose/        # Ready-to-use compose stacks
 ├── kubernetes/            # Manifests & for production workloads
 ├── ansible/               # Server provisioning & configuration playbooks
-├── terraform/             # Cloud infrastructure modules (AWS, GCP, OCI)
+├── infrastructure/        # Cloud infrastructure modules (AWS, GCP, OCI)
 └── scripts/               # Utility shell scripts for ops tasks
 ```
 
@@ -34,11 +35,12 @@ devops-kangservice/
 
 ## Quick Navigation
 
+- [Github Actions](./GITHUB_ACTIONS.md)
 - [Docker Examples](docker/)
 - [Docker Compose Stacks](docker-compose/)
 - [Kubernetes Manifest](kubernetes/)
 - [Ansible Automation](ansible/)
-- [Terraform Infrastructure](terraform/)
+- [Terraform Infrastructure](infrastructure/)
 
 Each project directory contains its own **README with setup instructions**.
 
@@ -53,7 +55,7 @@ This repository includes examples using:
 - Redis
 - Kubernetes
 - Ansible
-- Terraform
+- Terragrunt & Terraform
 - Linux shell scripting
 
 ---
