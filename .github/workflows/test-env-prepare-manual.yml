@@ -14,6 +14,11 @@ on:
           - Staging
           - Production
 
+env:
+  PROVIDER: GHCR
+  REGISTRY_DOMAIN: ghcr.io
+  REGISTRY_REPO: ionehouten
+  IMAGE_NAME: custom-nginx
 
 jobs:
   GlobalVariable:
@@ -37,10 +42,8 @@ jobs:
         uses: ionehouten/devops-kangservice/.github/actions/env-prepare-manual@main
         with:
           environment: ${{ inputs.environment }}
-          provider: "GCP"
-          image_name: "minipos"
-          registry_domain: "asia-southeast2-docker.pkg.dev"
-          registry_repo_dev: "company-development-core"
-          registry_repo_stg: "company-staging-cluster"
-          registry_repo_prd: "company-production-main"
+          provider: ${{ env.PROVIDER }}
+          registry_domain: ${{ env.REGISTRY_DOMAIN }}
+          registry_repo: ${{ env.REGISTRY_REPO }}
+          image_name: ${{ env.IMAGE_NAME }}
 

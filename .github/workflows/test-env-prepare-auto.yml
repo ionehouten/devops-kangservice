@@ -11,7 +11,13 @@ on:
     tags:
       - v*
 
+env:
+  PROVIDER: GHCR
+  REGISTRY_DOMAIN: ghcr.io
+  REGISTRY_REPO: ionehouten
+  IMAGE_NAME: custom-nginx
 
+          
 jobs:
   GlobalVariable:
     if: github.event.created == false
@@ -36,13 +42,10 @@ jobs:
         with:
           development_pattern: "^(develop|feature/.*)$"
           staging_pattern: "^main$"
-          provider: "GCP"
-          image_name: "minipos"
-          registry_domain: "asia-southeast2-docker.pkg.dev"
-          registry_repo_dev: "hausapp-development-core"
-          registry_repo_stg: "haus-staging-cluster"
-          registry_repo_prd: "haus-production-main"
-
+          provider: ${{ env.PROVIDER }}
+          registry_domain: ${{ env.REGISTRY_DOMAIN }}
+          registry_repo: ${{ env.REGISTRY_REPO }}
+          image_name: ${{ env.IMAGE_NAME }}
 
 
       - name: Debug
