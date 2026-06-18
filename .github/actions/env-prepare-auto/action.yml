@@ -160,7 +160,7 @@ runs:
     
     - name: Generate Image Metadata and Tags
       id: meta
-      uses: ./.github/actions/generate-image@main
+      uses: ionehouten/devops-kangservice/.github/actions/generate-image@main
       with:
         environment: ${{ steps.prepare.outputs.ENVIRONMENT }}
         provider: ${{ inputs.provider }}
