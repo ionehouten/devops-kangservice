@@ -1,5 +1,6 @@
 name: Prepare Environment (Auto)
 description: Determine deployment environment automatically from Git reference
+author: 'kangservice.cloud'
 
 inputs:
   development_pattern:
@@ -22,19 +23,73 @@ inputs:
     required: false
     default: "^v[0-9]"
 
+  provider:
+    required: true
+    description: 'Target cloud provider (AWS, GCP, GHCR)'
+    default: "ghcr"
+  image_name:
+    required: true
+    description: 'Application or service name (e.g., minipos)'
+  image_suffix:
+    required: false
+    description: 'Optional image tag suffix (e.g., alpine, slim)'
+    default: ''
+  
+  # ─── CORE PARAMETERS (SHARED / DEFAULT CHANNELS) ───
+  registry_domain:
+    required: true
+    description: 'Registry domain (e.g., ghcr.io, 123456789.dkr.ecr.amazonaws.com, asia-southeast2-docker.pkg.dev)'
+  registry_repo:
+    required: false
+    description: 'Main namespace or project. For GCP, fill this if using a Centralized Shared Project strategy.'
+    default: ''
+
+  # ─── GCP MULTI-PROJECT SPECIFIC (FALLBACK CHANNELS) ───
+  registry_repo_dev:
+    required: false
+    description: 'GCP Project ID/Repo explicitly for Dev environment'
+    default: ''
+  registry_repo_stg:
+    required: false
+    description: 'GCP Project ID/Repo explicitly for Staging environment'
+    default: ''
+  registry_repo_prd:
+    required: false
+    description: 'GCP Project ID/Repo explicitly for Production/Canary environment'
+    default: ''
+
 
 outputs:
   environment:
     value: ${{ steps.prepare.outputs.ENVIRONMENT }}
-
   environment_suffix:
     value: ${{ steps.prepare.outputs.ENVIRONMENT_SUFFIX }}
-  
   image_suffix:
     value: ${{ steps.prepare.outputs.IMAGE_SUFFIX }}
-
   overlays_path:
     value: ${{ steps.prepare.outputs.OVERLAYS_PATH }}
+
+  image_repo:
+    description: 'The finalized Image Repository URL without tags'
+    value: ${{ steps.meta.outputs.image_repo }}
+  short_sha:
+    description: 'Commit SHA (7 characters)'
+    value: ${{ steps.meta.outputs.short_sha }}
+  version:
+    description: 'Resolved version string'
+    value: ${{ steps.meta.outputs.version }}
+  image_tag:
+    description: 'Full image registry URL with version tag'
+    value: ${{ steps.meta.outputs.image_tag }}
+  image_tag_latest:
+    description: 'Full image registry URL with latest tag (if applicable)'
+    value: ${{ steps.meta.outputs.image_tag_latest }}
+  is_release:
+    description: 'Boolean indicating if the build is from a release tag'
+    value: ${{ steps.meta.outputs.is_release }}
+  is_default_branch:
+    description: 'Boolean indicating if the build is from the default branch'
+    value: ${{ steps.meta.outputs.is_default_branch }}
   
 
 runs:
@@ -53,21 +108,16 @@ runs:
         CNY_PATTERN='${{ inputs.canary_pattern }}'
         PRD_PATTERN='${{ inputs.production_pattern }}'
 
-        if [[ "$REF" =~ $PRD_PATTERN ]]; then
-          ENVIRONMENT="Production"
-
-        elif [[ "$REF" =~ $CNY_PATTERN ]]; then
+        if [[ "$REF" =~ $CNY_PATTERN ]]; then
           ENVIRONMENT="Canary"
-
+        elif [[ "$REF" =~ $PRD_PATTERN ]]; then
+          ENVIRONMENT="Production"
         elif [[ "$REF" =~ $STG_PATTERN ]]; then
           ENVIRONMENT="Staging"
-
         elif [[ "$REF" =~ $DEV_PATTERN ]]; then
           ENVIRONMENT="Development"
-
         else
-          echo "No environment mapping found for [$REF]"
-          exit 1
+          echo "Error: No environment mapping found for Git reference [$REF]" && exit 1
         fi
 
         echo "Detected Environment: $ENVIRONMENT"
@@ -107,3 +157,42 @@ runs:
             exit 1
             ;;
         esac
+    
+    - name: Generate Image Metadata and Tags
+      id: meta
+      uses: ./.github/actions/generate-image@main
+      with:
+        environment: ${{ steps.prepare.outputs.ENVIRONMENT }}
+        provider: ${{ inputs.provider }}
+        image_name: ${{ inputs.image_name }}
+        image_suffix: ${{ inputs.image_suffix }}
+        registry_domain: ${{ inputs.registry_domain }}
+        registry_repo: ${{ inputs.registry_repo }}
+        registry_repo_dev:  ${{ inputs.registry_repo_dev }}
+        registry_repo_stg:  ${{ inputs.registry_repo_stg }}
+        registry_repo_prd:  ${{ inputs.registry_repo_prd }}
+
+    - name: Generate Job Summary
+      shell: bash
+      run: |
+        echo "## 🚀 Deployment Context Prepared" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Environment** | \`${{ steps.prepare.outputs.ENVIRONMENT }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Provider** | \`${{ inputs.provider }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Overlays Path** | \`./kustomize/overlays/${{ steps.prepare.outputs.OVERLAYS_PATH }}\` |" >> $GITHUB_SUMMARY
+        echo "| **Version Tag** | \`${{ steps.meta.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Short SHA** | \`${{ steps.meta.outputs.short_sha }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Target Container Repositories" >> $GITHUB_STEP_SUMMARY
+        echo "- **Primary Tag:** \`${{ steps.meta.outputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ -n "${{ steps.meta.outputs.image_tag_latest }}" ]]; then
+          echo "- **Latest Tag:** \`${{ steps.meta.outputs.image_tag_latest }}\`" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "*Summary generated automatically by \`kangservice.cloud\` modules.*" >> $GITHUB_STEP_SUMMARY
+  

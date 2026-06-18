@@ -1,0 +1,194 @@
+name: 'Generate Image Repository and Tags'
+description: 'Combined action to generate universal container repo URL and complete image versioning tags'
+author: 'kangservice.cloud'
+
+inputs:
+  environment:
+    required: true
+    description: 'Target environment (e.g., development, staging, production, canary)'
+  provider:
+    required: true
+    description: 'Target cloud provider (AWS, GCP, GHCR)'
+  image_name:
+    required: true
+    description: 'Application or service name (e.g., minipos)'
+  image_suffix:
+    required: false
+    description: 'Optional image tag suffix (e.g., alpine, slim)'
+    default: ''
+  
+  # ─── CORE PARAMETERS (SHARED / DEFAULT CHANNELS) ───
+  registry_domain:
+    required: true
+    description: 'Registry domain (e.g., ghcr.io, 123456789.dkr.ecr.amazonaws.com, asia-southeast2-docker.pkg.dev)'
+  registry_repo:
+    required: false
+    description: 'Main namespace or project. For GCP, fill this if using a Centralized Shared Project strategy.'
+    default: ''
+
+  # ─── GCP MULTI-PROJECT SPECIFIC (FALLBACK CHANNELS) ───
+  registry_repo_dev:
+    required: false
+    description: 'GCP Project ID/Repo explicitly for Dev environment'
+    default: ''
+  registry_repo_stg:
+    required: false
+    description: 'GCP Project ID/Repo explicitly for Staging environment'
+    default: ''
+  registry_repo_prd:
+    required: false
+    description: 'GCP Project ID/Repo explicitly for Production/Canary environment'
+    default: ''
+
+outputs:
+  image_repo:
+    description: 'The finalized Image Repository URL without tags'
+    value: ${{ steps.repo_generator.outputs.image_repo }}
+  short_sha:
+    description: 'Commit SHA (7 characters)'
+    value: ${{ steps.version_generator.outputs.SHORT_SHA }}
+  version:
+    description: 'Resolved version string'
+    value: ${{ steps.version_generator.outputs.VERSION }}
+  image_tag:
+    description: 'Full image registry URL with version tag'
+    value: ${{ steps.version_generator.outputs.IMAGE_TAG }}
+  image_tag_latest:
+    description: 'Full image registry URL with latest tag (if applicable)'
+    value: ${{ steps.version_generator.outputs.IMAGE_TAG_LATEST }}
+  is_release:
+    description: 'Boolean indicating if the build is from a release tag'
+    value: ${{ steps.version_generator.outputs.IS_RELEASE }}
+  is_default_branch:
+    description: 'Boolean indicating if the build is from the default branch'
+    value: ${{ steps.version_generator.outputs.IS_DEFAULT_BRANCH }}
+
+runs:
+  using: composite
+  steps:
+    # ─── STEP 1: RESOLVE THE IMAGE REPOSITORY URL ───
+    - name: Generate Universal Repo URL
+      id: repo_generator
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        ENV_RAW="${{ inputs.environment }}"
+        PROVIDER=$(echo "${{ inputs.provider }}" | tr '[:upper:]' '[:lower:]')
+        IMAGE_NAME="${{ inputs.image_name }}"
+        DOMAIN="${{ inputs.registry_domain }}"
+        REPO_SHARED="${{ inputs.registry_repo }}"
+
+        ENV_LOWER=$(echo "$ENV_RAW" | tr '[:upper:]' '[:lower:]')
+
+        if [[ "$PROVIDER" == "gcp" ]]; then
+          # Strategy A: Centralized Shared Project
+          if [[ -n "$REPO_SHARED" ]]; then
+            echo "GCP Strategy: Centralized Shared Project Detected"
+            SELECTED_REPO="$REPO_SHARED"
+          # Strategy B: Multi-Project Environment Mapping
+          else
+            echo "GCP Strategy: Multi-Project Environment Mapping"
+            case "$ENV_LOWER" in
+              dev|development)
+                SELECTED_REPO="${{ inputs.registry_repo_dev }}"
+                ;;
+              stg|stag|staging)
+                SELECTED_REPO="${{ inputs.registry_repo_stg }}"
+                ;;
+              prd|prod|production|canary)
+                SELECTED_REPO="${{ inputs.registry_repo_prd }}"
+                ;;
+              *)
+                echo "Error: Environment '$ENV_RAW' is unrecognized for GCP Multi-Project!" && exit 1
+                ;;
+            esac
+          fi
+
+          if [[ -z "$SELECTED_REPO" ]]; then
+            echo "Error: Failed to resolve the target GCP repository/project!" && exit 1
+          fi
+          FULL_REPO="${DOMAIN}/${SELECTED_REPO}/${IMAGE_NAME}"
+
+        elif [[ "$PROVIDER" == "aws" || "$PROVIDER" == "ghcr" ]]; then
+          echo "Provider Detected: ${PROVIDER^^}"
+          if [[ -z "$REPO_SHARED" ]]; then
+            echo "Error: The 'registry_repo' parameter is mandatory for AWS or GHCR!" && exit 1
+          fi
+          FULL_REPO="${DOMAIN}/${REPO_SHARED}/${IMAGE_NAME}"
+        else
+          echo "Error: Provider '$PROVIDER' is unsupported! Use AWS, GCP, or GHCR." && exit 1
+        fi
+
+        echo "image_repo=${FULL_REPO}" >> $GITHUB_OUTPUT
+
+    # ─── STEP 2: RESOLVE METADATA AND TAGS BASED ON GIT REF ───
+    - name: Generate Version Tags
+      id: version_generator
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Inject the dynamically resolved repo URL from Step 1
+        REGISTRY="${{ steps.repo_generator.outputs.image_repo }}"
+        IMAGE_SUFFIX=$(echo "${{ inputs.image_suffix }}" | tr '[:upper:]' '[:lower:]')
+
+        REF_NAME="${{ github.ref_name }}"
+        REF_TYPE="${{ github.ref_type }}"
+        DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+        SHORT_SHA="${GITHUB_SHA::7}"
+
+        IS_RELEASE=false
+        IS_DEFAULT_BRANCH=false
+
+        if [ -n "$IMAGE_SUFFIX" ]; then
+          IMAGE_SUFFIX="-$IMAGE_SUFFIX"
+        fi
+
+        # 1. Release Tag Handling
+        if [[ "$REF_TYPE" == "tag" ]]; then
+          if [[ ! "$REF_NAME" =~ ^v ]]; then
+            echo "❌ Error: Tag must start with 'v'" && exit 1
+          fi
+          VERSION="$REF_NAME"
+          IS_RELEASE=true
+
+        # 2. Default Branch Handling
+        elif [[ "$REF_NAME" == "$DEFAULT_BRANCH" ]]; then
+          VERSION="$SHORT_SHA"
+          IS_DEFAULT_BRANCH=true
+
+        # 3. Feature/Custom Branch Handling
+        else
+          SANITIZED=$(echo "$REF_NAME" \
+            | tr '/' '-' \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's/[^a-z0-9.-]/-/g' \
+            | sed 's/--*/-/g')
+          VERSION="branch-$SANITIZED"
+        fi
+
+        # Assemble full image tags
+        IMAGE_TAG="$REGISTRY:$VERSION$IMAGE_SUFFIX"
+        IMAGE_TAG_LATEST=""
+
+        if [[ "$IS_RELEASE" == "true" ]] || [[ "$IS_DEFAULT_BRANCH" == "true" ]]; then
+          IMAGE_TAG_LATEST="$REGISTRY:latest$IMAGE_SUFFIX"
+        fi
+
+        echo "================================="
+        echo "Ref Type          : $REF_TYPE"
+        echo "Ref Name          : $REF_NAME"
+        echo "Resolved Repo     : $REGISTRY"
+        echo "Version           : $VERSION"
+        echo "Image Tag         : $IMAGE_TAG"
+        echo "Image Tag Latest  : $IMAGE_TAG_LATEST"
+        echo "================================="
+
+        # Export outputs
+        echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_OUTPUT
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "IMAGE_TAG_LATEST=$IMAGE_TAG_LATEST" >> $GITHUB_OUTPUT
+        echo "IS_RELEASE=$IS_RELEASE" >> $GITHUB_OUTPUT
+        echo "IS_DEFAULT_BRANCH=$IS_DEFAULT_BRANCH" >> $GITHUB_OUTPUT

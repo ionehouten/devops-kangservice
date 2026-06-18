@@ -22,12 +22,12 @@ jobs:
       image_suffix: ${{ steps.prepare.outputs.image_suffix }}
       overlays_path: ${{ steps.prepare.outputs.overlays_path }}
 
-      short_sha: ${{ steps.version.outputs.short_sha }}
-      version: ${{ steps.version.outputs.version }}
-      image_tag: ${{ steps.version.outputs.image_tag }}
-      image_tag_latest: ${{ steps.version.outputs.image_tag_latest }}
-      is_release: ${{ steps.version.outputs.is_release }}
-      is_default_branch: ${{ steps.version.outputs.is_default_branch }}
+      short_sha: ${{ steps.prepare.outputs.short_sha }}
+      version: ${{ steps.prepare.outputs.version }}
+      image_tag: ${{ steps.prepare.outputs.image_tag }}
+      image_tag_latest: ${{ steps.prepare.outputs.image_tag_latest }}
+      is_release: ${{ steps.prepare.outputs.is_release }}
+      is_default_branch: ${{ steps.prepare.outputs.is_default_branch }}
       
     steps:
       - name: Prepare Environment
@@ -36,12 +36,14 @@ jobs:
         with:
           development_pattern: "^(develop|feature/.*)$"
           staging_pattern: "^main$"
+          provider: "GCP"
+          image_name: "minipos"
+          registry_domain: "asia-southeast2-docker.pkg.dev"
+          registry_repo_dev: "hausapp-development-core"
+          registry_repo_stg: "haus-staging-cluster"
+          registry_repo_prd: "haus-production-main"
 
-      - name: Image Versioning
-        id: version
-        uses: ionehouten/devops-kangservice/.github/actions/versioning-action@main
-        with:
-          registry_image: ghcr.io/ionehouten/devops-kangservice
+
 
       - name: Debug
         run: |
@@ -50,9 +52,9 @@ jobs:
           echo "image_suffix: ${{ steps.prepare.outputs.image_suffix }}"
           echo "overlays_path: ${{ steps.prepare.outputs.overlays_path }}"
 
-          echo "short_sha: ${{ steps.version.outputs.short_sha }}"
-          echo "version: ${{ steps.version.outputs.version }}"
-          echo "image_tag: ${{ steps.version.outputs.image_tag }}"
-          echo "image_tag_latest: ${{ steps.version.outputs.image_tag_latest }}"
-          echo "is_release: ${{ steps.version.outputs.is_release }}"
-          echo "is_default_branch: ${{ steps.version.outputs.is_default_branch }}"
+          echo "short_sha: ${{ steps.prepare.outputs.short_sha }}"
+          echo "version: ${{ steps.prepare.outputs.version }}"
+          echo "image_tag: ${{ steps.prepare.outputs.image_tag }}"
+          echo "image_tag_latest: ${{ steps.prepare.outputs.image_tag_latest }}"
+          echo "is_release: ${{ steps.prepare.outputs.is_release }}"
+          echo "is_default_branch: ${{ steps.prepare.outputs.is_default_branch }}"
