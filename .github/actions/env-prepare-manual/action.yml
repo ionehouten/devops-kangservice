@@ -168,7 +168,7 @@ runs:
         echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
         echo "| **Environment** | \`${{ steps.prepare.outputs.ENVIRONMENT }}\` |" >> $GITHUB_STEP_SUMMARY
         echo "| **Provider** | \`${{ inputs.provider }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "| **Overlays Path** | \`./kustomize/overlays/${{ steps.prepare.outputs.OVERLAYS_PATH }}\` |" >> $GITHUB_SUMMARY
+        echo "| **Overlays Path** | \`./kustomize/overlays/${{ steps.prepare.outputs.OVERLAYS_PATH }}\` |" >> $GITHUB_STEP_SUMMARY
         echo "| **Version Tag** | \`${{ steps.meta.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
         echo "| **Short SHA** | \`${{ steps.meta.outputs.short_sha }}\` |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
