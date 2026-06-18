@@ -110,12 +110,15 @@ runs:
           fi
           FULL_REPO="${DOMAIN}/${SELECTED_REPO}/${IMAGE_NAME}"
 
-        elif [[ "$PROVIDER" == "aws" || "$PROVIDER" == "ghcr" ]]; then
+        elif [[ "$PROVIDER" == "ghcr" ]]; then
           echo "Provider Detected: ${PROVIDER^^}"
           if [[ -z "$REPO_SHARED" ]]; then
-            echo "Error: The 'registry_repo' parameter is mandatory for AWS or GHCR!" && exit 1
+            echo "Error: The 'registry_repo' parameter is mandatory for GHCR!" && exit 1
           fi
           FULL_REPO="${DOMAIN}/${REPO_SHARED}/${IMAGE_NAME}"
+        elif [[ "$PROVIDER" == "aws" ]];
+          FULL_REPO="${DOMAIN}/${IMAGE_NAME}"
+
         else
           echo "Error: Provider '$PROVIDER' is unsupported! Use AWS, GCP, or GHCR." && exit 1
         fi
@@ -148,7 +151,7 @@ runs:
         # 1. Release Tag Handling
         if [[ "$REF_TYPE" == "tag" ]]; then
           if [[ ! "$REF_NAME" =~ ^v ]]; then
-            echo "❌ Error: Tag must start with 'v'" && exit 1
+            echo "Error: Tag must start with 'v'" && exit 1
           fi
           VERSION="$REF_NAME"
           IS_RELEASE=true

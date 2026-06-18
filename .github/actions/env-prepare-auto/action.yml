@@ -6,12 +6,12 @@ inputs:
   development_pattern:
     description: Regex allowed for Development
     required: false
-    default: "^main$"
+    default: "^develop$"
 
   staging_pattern:
     description: Regex allowed for Staging
     required: false
-    default: "^staging$"
+    default: "^main$"
 
   canary_pattern:
     description: Regex allowed for Canary
