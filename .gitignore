@@ -7,6 +7,8 @@
 *generated.tf
 .ignore*
 *IGNORE*
+*.crt
+*.key
 .env
 sync.toml
 secret.yaml

@@ -116,9 +116,9 @@ runs:
             echo "Error: The 'registry_repo' parameter is mandatory for GHCR!" && exit 1
           fi
           FULL_REPO="${DOMAIN}/${REPO_SHARED}/${IMAGE_NAME}"
-        elif [[ "$PROVIDER" == "aws" ]];
+        elif [[ "$PROVIDER" == "aws" ]]; then
+          echo "Provider Detected: ${PROVIDER^^}"
           FULL_REPO="${DOMAIN}/${IMAGE_NAME}"
-
         else
           echo "Error: Provider '$PROVIDER' is unsupported! Use AWS, GCP, or GHCR." && exit 1
         fi
