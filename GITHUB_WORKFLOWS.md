@@ -81,7 +81,7 @@ jobs:
 
   Build:
     needs: [GlobalVariable]
-    uses: ibncorp/haus-devops/.github/workflows/build-docker.yaml@main
+    uses: ionehouten/devops-kangservice/.github/workflows/build-docker.yaml@main
     with:
       environment: ${{ needs.GlobalVariable.outputs.environment }}
       image_repo: ${{ needs.GlobalVariable.outputs.image_tag }}
