@@ -1,0 +1,113 @@
+name: Build Docker Image
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      image_repo:
+        required: true
+        type: string
+      image_suffix:
+        required: true
+        type: string
+      context:
+        required: false
+        type: string
+        default: .
+      dockerfile:
+        required: false
+        type: string
+        default: Dockerfile
+
+    secrets:
+      AWS_REGION:
+        required: false
+      AWS_ROLE_ARN:
+        required: false
+      GCP_PROJECT_ID_DEV:
+        required: false
+      GCP_SA_DEV:
+        required: false
+      GCP_PROJECT_ID_STG:
+        required: false
+      GCP_SA_STG:
+        required: false
+      GCP_PROJECT_ID_PRD:
+        required: false
+      GCP_SA_PRD:
+        required: false
+      GCP_PROJECT_ID_SHARED:
+        required: false
+      GCP_SA_SHARED:
+        required: false
+      GHCR_DOMAIN:
+        required: false
+
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    steps: 
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Versioning
+        id: versioning
+        uses: ionehouten/devops-kangservice/.github/actions/image-versioning@main
+        with:
+          image_repo: ${{ inputs.image_repo }}
+          image_suffix: ${{ inputs.image_suffix }}
+
+      - name: Authenticate to Registry
+        uses: ionehouten/devops-kangservice/.github/actions/registry-login@main
+        with:
+          image_repo: ${{ inputs.image_repo }}
+          
+          # AWS Variables
+          aws_region: ${{ secrets.AWS_REGION }}
+          aws_role_to_assume: ${{ secrets.AWS_ROLE_ARN }}
+          
+          # GCP Variables
+          gcp_project_dev: ${{ secrets.GCP_PROJECT_ID_DEV }}
+          gcp_sa_dev: ${{ secrets.GCP_SA_DEV }}
+          gcp_project_stg: ${{ secrets.GCP_PROJECT_ID_STG }}
+          gcp_sa_stg: ${{ secrets.GCP_SA_STG }}
+          gcp_project_prd: ${{ secrets.GCP_PROJECT_ID_PRD }}
+          gcp_sa_prd: ${{ secrets.GCP_SA_PRD }}
+          
+          gcp_project_shared: ${{ secrets.GCP_PROJECT_ID_SHARED }}
+          gcp_sa_shared: ${{ secrets.GCP_SA_SHARED }}
+          
+          # GHCR Variables
+          ghcr_domain: ${{ secrets.GHCR_DOMAIN }}
+      
+      - name: Build Info
+        run: |
+          echo "${{ steps.versioning.outputs.short_sha }}"
+          echo "${{ steps.versioning.outputs.version }}"
+          echo "${{ steps.versioning.outputs.image_tag }}"
+          echo "${{ steps.versioning.outputs.image_tag_latest }}"
+          echo "IMAGE_TAG=${{ steps.versioning.outputs.image_tag }}" >> build.env
+          echo "IMAGE_TAG_LATEST=${{ steps.versioning.outputs.image_tag_latest }}" >> build.env
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.context }}/${{ inputs.dockerfile }}
+          push: true
+          tags: |
+            ${{ steps.versioning.outputs.image_tag }}
+            ${{ steps.versioning.outputs.image_tag_latest }}
+          build-args: |
+            APP_VERSION=${{ steps.Versioning.outputs.version }}
+            BUILD_ENV=${{ inputs.environment }}
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: build
+          path: build.env

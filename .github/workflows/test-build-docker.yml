@@ -1,0 +1,62 @@
+name: Workflow Test | build-docker
+run-name: Workflow Test | build-docker - ${{ inputs.environment }} - ${{ github.ref_name }} by @${{ github.actor }}
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'Development'
+        type: choice
+        options:
+          - Development
+          - Staging
+          - Production
+
+env:
+  PROVIDER: GHCR
+  REGISTRY_DOMAIN: ghcr.io
+  REGISTRY_REPO: ionehouten
+  IMAGE_NAME: custom-nginx
+
+jobs:
+  GlobalVariable:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.prepare.outputs.environment }}
+      environment_suffix: ${{ steps.prepare.outputs.environment_suffix }}
+      image_suffix: ${{ steps.prepare.outputs.image_suffix }}
+      overlays_path: ${{ steps.prepare.outputs.overlays_path }}
+
+      short_sha: ${{ steps.prepare.outputs.short_sha }}
+      version: ${{ steps.prepare.outputs.version }}
+      image_tag: ${{ steps.prepare.outputs.image_tag }}
+      image_tag_latest: ${{ steps.prepare.outputs.image_tag_latest }}
+      is_release: ${{ steps.prepare.outputs.is_release }}
+      is_default_branch: ${{ steps.prepare.outputs.is_default_branch }}
+      
+    steps:
+      - name: Prepare Environment
+        id: prepare
+        uses: ionehouten/devops-kangservice/.github/actions/env-prepare-manual@main
+        with:
+          environment: ${{ inputs.environment }}
+          provider: ${{ env.PROVIDER }}
+          registry_domain: ${{ env.REGISTRY_DOMAIN }}
+          registry_repo: ${{ env.REGISTRY_REPO }}
+          image_name: ${{ env.IMAGE_NAME }}
+
+  Build:
+    needs: ['GlobalVariable']
+    uses: ibncorp/haus-devops/.github/workflows/build-docker.yaml@main
+    with:
+      environment: ${{ needs.GlobalVariable.outputs.environment }}
+      image_repo: ${{ needs.GlobalVariable.outputs.image_tag }}
+      context: ./docker/test-build
+    secrets: inherit
