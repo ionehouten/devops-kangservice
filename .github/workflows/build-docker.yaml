@@ -10,7 +10,7 @@ on:
         required: true
         type: string
       image_suffix:
-        required: true
+        required: false
         type: string
       context:
         required: false
