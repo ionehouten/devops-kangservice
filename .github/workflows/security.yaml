@@ -1,0 +1,478 @@
+name: Security Scan
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  security-events: write
+
+on:
+  workflow_call:
+    inputs:
+      ghas_enabled:
+        description: 'Set true if private used GitHub Advanced Security License'
+        required: false
+        type: boolean
+        default: false
+
+      secret_scan:
+        description: 'Run Secret Scan'
+        required: false
+        type: boolean
+        default: true
+      gitleaks_config:
+        description: "Path gitleaks config"
+        required: false
+        type: string
+        default: ""
+      sast_scan:
+        description: 'Run SAST SCAN'
+        required: false
+        type: boolean
+        default: true
+      sonarqube_scan:
+        description: 'Run SonarQube Scan'
+        required: false
+        type: boolean
+        default: false
+      dependency_scan:
+        description: 'Run Dependency Scan'
+        required: false
+        type: boolean
+        default: true
+      container_scan:
+        description: 'Run Container Scan'
+        required: false
+        type: boolean
+        default: false
+      iac_scan:
+        description: 'Run IaC Scan'
+        required: false
+        type: boolean
+        default: true
+      image_ref:
+        description: 'Fully Image reference'
+        required: false
+        type: string
+    outputs:
+      secret_scan_result:
+        value: ${{ jobs.SecretScan.result }}
+      sast_result:
+        value: ${{ jobs.SAST.result }}
+      sonarqube_result:
+        value: ${{ jobs.SonarQubeScan.result }}
+      dependency_result:
+        value: ${{ jobs.DependencyScan.result }}
+      container_scan_result:
+        value: ${{ jobs.ContainerScan.result }}
+      iac_result:
+        value: ${{ jobs.IaCScan.result }}
+      any_failed:
+        value: ${{ jobs.SummaryGate.outputs.any_failed }}
+
+
+jobs:
+  SecretScan:
+    if: ${{ inputs.secret_scan }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run Gitleaks
+        id: gitleaks
+        continue-on-error: true 
+        run: |
+          CONFIG=""
+
+          if [ -n "${{ inputs.gitleaks_config }}" ]; then
+            CONFIG="--config=/repo/${{ inputs.gitleaks_config }}"
+          fi
+          
+          docker run --rm \
+            -v ${{ github.workspace }}:/repo \
+            ghcr.io/gitleaks/gitleaks:v8.30.1 detect \
+            --source=/repo \
+            $CONFIG \
+            --report-format sarif \
+            --report-path /repo/gitleaks.sarif \
+            --exit-code 1
+
+      - name: Upload SARIF as Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-sarif
+          path: gitleaks.sarif
+
+      - name: Upload SARIF to Github Security
+        if: ${{ always() && (github.event.repository.visibility == 'public' || inputs.ghas_enabled == true) }}
+        uses: github/codeql-action/upload-sarif@v3 
+        with:
+          sarif_file: gitleaks.sarif
+
+      - name: Fail if secrets found 
+        if: steps.gitleaks.outcome == 'failure'
+        run: exit 1
+
+
+  SAST:
+    if: ${{ inputs.sast_scan }}
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+      
+    steps:
+      - uses: actions/checkout@v6
+      
+      - name: Run Semgrep
+        id: semgrep
+        continue-on-error: true
+        run: |
+          semgrep scan \
+            --config auto \
+            --sarif \
+            --severity ERROR \
+            --error \
+            --output semgrep.sarif
+            
+      - name: Upload SARIF as Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-sarif
+          path: semgrep.sarif
+          
+      - name: Fail if vulnerabilities found
+        if: steps.semgrep.outcome == 'failure'
+        run: exit 1
+
+      - name: Upload SARIF to Github Security
+        if: ${{ always() && (github.event.repository.visibility == 'public' || inputs.ghas_enabled == true) }}
+        uses: github/codeql-action/upload-sarif@v3 
+        with:
+          sarif_file: semgrep.sarif
+
+  # SonarQubeScan config example
+  # sonar-project.properties
+  # sonar.projectKey=example-api
+  # sonar.projectName=Example Api
+  # sonar.sources=.
+  # sonar.exclusions=**/*_test.go,**/vendor/**
+  # sonar.tests=.
+  # sonar.test.inclusions=**/*_test.go
+  SonarQubeScan:
+    if: ${{ inputs.sonarqube_scan }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+  DependencyScan:
+    if: ${{ inputs.dependency_scan }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run Trivy FS
+        id: trivyfs
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-fs.sarif
+          exit-code: 1
+
+      - name: Upload Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-fs-report
+          path: trivy-fs.sarif
+
+      - name: Upload SARIF to Github Security
+        if: ${{ always() && (github.event.repository.visibility == 'public' || inputs.ghas_enabled == true) }}
+        uses: github/codeql-action/upload-sarif@v3 
+        with:
+          sarif_file: trivy-fs.sarif
+
+      # - name: Generate Source Code SBOM
+      #   id: trivysbom
+      #   continue-on-error: true
+      #   uses: aquasecurity/trivy-action@v0.36.0
+      #   with:
+      #     scan-type: 'fs'
+      #     scan-ref: '.'
+      #     format: 'spdx-json'
+      #     output: 'trivy-fs-sbom.spdx.json'
+      
+      # - name: Upload Source Code SBOM Report
+      #   if: always()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: trivy-fs-sbom
+      #     path: trivy-fs-sbom.spdx.json
+
+      - name: Fail if vulnerabilities found
+        if: steps.trivyfs.outcome == 'failure'
+        run: exit 1
+
+  # DependencyScan:
+  #   if: ${{ inputs.dependency_scan }}
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #     - name: Dependency Check
+  #       id: depcheck
+  #       continue-on-error: true
+  #       uses: dependency-check/Dependency-Check_Action@main
+  #       with:
+  #         project: service
+  #         path: .
+  #         format: HTML
+
+  #     - name: Upload Dependency Check Report
+  #       if: always()
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: dependency-check-report
+  #         path: reports/dependency-check-report.html
+
+  #     - name: Fail if vulnerabilities found
+  #       if: steps.depcheck.outcome == 'failure'
+  #       run: exit 1
+
+  ContainerScan:
+    if: ${{ inputs.container_scan && inputs.image_ref != '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Authenticate to Registry
+        uses: ionehouten/devops-kangservice/.github/actions/registry-login@main
+        with:
+          image_ref: ${{ inputs.image_ref }}
+          
+          # AWS Variables
+          aws_region: ${{ secrets.AWS_REGION }}
+          aws_role_to_assume: ${{ secrets.AWS_ROLE_ARN }}
+          
+          # GCP Variables
+          gcp_project_dev: ${{ secrets.GCP_PROJECT_ID_DEV }}
+          gcp_sa_dev: ${{ secrets.GCP_SA_DEV }}
+          gcp_project_stg: ${{ secrets.GCP_PROJECT_ID_STG }}
+          gcp_sa_stg: ${{ secrets.GCP_SA_STG }}
+          gcp_project_prd: ${{ secrets.GCP_PROJECT_ID_PRD }}
+          gcp_sa_prd: ${{ secrets.GCP_SA_PRD }}
+          
+          gcp_project_shared: ${{ secrets.GCP_PROJECT_ID_SHARED }}
+          gcp_sa_shared: ${{ secrets.GCP_SA_SHARED }}
+          
+          # GHCR Variables
+          ghcr_domain: ${{ secrets.GHCR_DOMAIN }}
+
+      - name: Scan Image
+        id: trivy
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{ inputs.image_ref }}"
+          severity: HIGH,CRITICAL
+          format: sarif
+          output: trivy-image.sarif
+          exit-code: 1
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-image-report
+          path: trivy-image.sarif
+
+      - name: Upload SARIF to Github Security
+        if: ${{ always() && (github.event.repository.visibility == 'public' || inputs.ghas_enabled == true) }}
+        uses: github/codeql-action/upload-sarif@v3 
+        with:
+          sarif_file: trivy-image.sarif
+
+      - name: Generate SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{ inputs.image_ref }}"
+          format: 'cyclonedx'
+          output: 'sbom.cdx.json'
+
+      - name: Upload SBOM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+      
+      - name: Submit SBOM to GitHub Dependency Graph
+        uses: github/dependency-submission-action@v1
+        with:
+          correlator: "${{ github.job }}-${{ github.run_id }}"
+          snapshot-path: "sbom.cdx.json"
+
+      - name: Fail if vulnerabilities found
+        if: steps.trivy.outcome == 'failure'
+        run: exit 1
+
+  SignImage:
+    if: ${{ needs.ContainerScan.result == 'success' &&  inputs.container_scan && inputs.image_ref != ''  }}
+    needs: ['ContainerScan']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        run: |
+          cosign sign --yes ${{ inputs.image_ref }}
+
+
+  IaCScan:
+    if: ${{ inputs.iac_scan }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run Checkov
+        id: checkov
+        continue-on-error: true
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: kubernetes,terraform
+          soft_fail: false
+          output_format: sarif
+          output_file_path: checkov.sarif
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: checkov-report
+          path: checkov.sarif
+      
+      - name: Upload SARIF to Github Security
+        if: ${{ always() && (github.event.repository.visibility == 'public' || inputs.ghas_enabled == true) }}
+        uses: github/codeql-action/upload-sarif@v3 
+        with:
+          sarif_file: checkov.sarif
+
+      - name: Fail if vulnerabilities found
+        if: steps.checkov.outcome == 'failure'
+        run: exit 1
+
+      
+
+  SummaryGate:
+    if: ${{ !cancelled() }}
+    needs: [SecretScan, SAST, SonarQubeScan, DependencyScan, ContainerScan, IaCScan]
+    runs-on: ubuntu-latest
+    outputs:
+      any_failed: ${{ steps.check.outputs.any_failed }}
+    steps:
+      - name: Check results
+        id: check
+        run: |
+          echo "SecretScan=${{ needs.SecretScan.result }}"
+          echo "SAST=${{ needs.SAST.result }}"
+          echo "SonarQubeScan=${{ needs.SonarQubeScan.result }}"
+          echo "DependencyScan=${{ needs.DependencyScan.result }}"
+          echo "IaCScan=${{ needs.IaCScan.result }}"
+          echo "ContainerScan=${{ needs.ContainerScan.result }}"
+
+          RESULTS="
+          ${{ needs.SecretScan.result }}
+          ${{ needs.SAST.result }}
+          ${{ needs.SonarQubeScan.result }}
+          ${{ needs.DependencyScan.result }}
+          ${{ needs.IaCScan.result }}
+          ${{ needs.ContainerScan.result }}
+          "
+
+          if echo "$RESULTS" | grep -q failure; then
+            echo "any_failed=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "any_failed=false" >> $GITHUB_OUTPUT
+  
+  ConsolidateReports:
+    if: ${{ always() }}
+    needs: [SecretScan, SAST, DependencyScan, ContainerScan, IaCScan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: all-reports
+          merge-multiple: false 
+
+      # Merge All SARIF files into one folder
+      - name: Consolidate SARIF files
+        run: |
+          mkdir -p consolidated-reports
+          
+          # Copy and rename SARIF files
+          find all-reports -name "*.sarif" -type f | while read file; do
+            # Ambil nama folder sebagai prefix
+            folder=$(basename $(dirname "$file"))
+            filename=$(basename "$file")
+            
+            case "$folder" in
+              *gitleaks*)   cp "$file" "consolidated-reports/1-gitleaks-secret.sarif" ;;
+              *semgrep*)    cp "$file" "consolidated-reports/2-semgrep-sast.sarif" ;;
+              *trivy-fs*)   cp "$file" "consolidated-reports/3-trivy-dependency.sarif" ;;
+              *trivy-image*) cp "$file" "consolidated-reports/4-trivy-container.sarif" ;;
+              *checkov*)    cp "$file" "consolidated-reports/5-checkov-iac.sarif" ;;
+              *)            cp "$file" "consolidated-reports/$folder-$filename" ;;
+            esac
+          done
+          
+          # Copy SBOM if exists
+          # find all-reports -name "*.spdx.json" -type f -exec cp {} consolidated-reports/6-sbom.spdx.json \;
+          find all-reports -name "*.json" -type f -exec cp {} consolidated-reports/6-sbom.cdx.json \;
+          
+          # Results
+          echo "📦 Consolidated reports:"
+          ls -lh consolidated-reports/
+
+      - name: Upload consolidated reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-all
+          path: consolidated-reports/
+          retention-days: 30
+
+      - name: Generate Job Summary
+        run: |
+          echo "## 🔒 Security Scan Reports" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Semua laporan sudah digabung dalam 1 artifact:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 Download:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Nama:** \`security-reports-all\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Isi:** Semua file SARIF dari scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Cara membuka file SARIF:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Install VS Code extension: **SARIF Viewer**" >> $GITHUB_STEP_SUMMARY
+          echo "2. Buka file \`.sarif\` di VS Code" >> $GITHUB_STEP_SUMMARY
+          echo "3. Lihat detail vulnerability per baris code" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Files:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -1 consolidated-reports/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
