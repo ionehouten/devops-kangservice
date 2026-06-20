@@ -6,10 +6,13 @@ on:
       environment:
         required: true
         type: string
-      image_repo:
+      image_tag:
         required: true
         type: string
-      image_suffix:
+      image_tag_latest:
+        required: false
+        type: string
+      version:
         required: false
         type: string
       context:
@@ -54,17 +57,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Versioning
-        id: versioning
-        uses: ionehouten/devops-kangservice/.github/actions/image-versioning@main
-        with:
-          image_repo: ${{ inputs.image_repo }}
-          image_suffix: ${{ inputs.image_suffix }}
-
       - name: Authenticate to Registry
         uses: ionehouten/devops-kangservice/.github/actions/registry-login@main
         with:
-          image_repo: ${{ inputs.image_repo }}
+          image_repo: ${{ inputs.image_tag }}
           
           # AWS Variables
           aws_region: ${{ secrets.AWS_REGION }}
@@ -84,14 +80,10 @@ jobs:
           # GHCR Variables
           ghcr_domain: ${{ secrets.GHCR_DOMAIN }}
       
-      - name: Build Info
+      - name: Build Env
         run: |
-          echo "${{ steps.versioning.outputs.short_sha }}"
-          echo "${{ steps.versioning.outputs.version }}"
-          echo "${{ steps.versioning.outputs.image_tag }}"
-          echo "${{ steps.versioning.outputs.image_tag_latest }}"
-          echo "IMAGE_TAG=${{ steps.versioning.outputs.image_tag }}" >> build.env
-          echo "IMAGE_TAG_LATEST=${{ steps.versioning.outputs.image_tag_latest }}" >> build.env
+          echo "IMAGE_TAG=${{ inputs.image_tag }}" >> build.env
+          echo "IMAGE_TAG_LATEST=${{ inputs.image_tag_latest }}" >> build.env
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
@@ -100,10 +92,10 @@ jobs:
           file: ${{ inputs.context }}/${{ inputs.dockerfile }}
           push: true
           tags: |
-            ${{ steps.versioning.outputs.image_tag }}
-            ${{ steps.versioning.outputs.image_tag_latest }}
+            ${{ inputs.image_tag }}
+            ${{ inputs.image_tag_latest }}
           build-args: |
-            APP_VERSION=${{ steps.Versioning.outputs.version }}
+            APP_VERSION=${{ inputs.version }}
             BUILD_ENV=${{ inputs.environment }}
 
       - name: Upload Build Artifact

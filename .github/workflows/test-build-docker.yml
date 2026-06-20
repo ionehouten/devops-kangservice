@@ -57,6 +57,8 @@ jobs:
     uses: ionehouten/devops-kangservice/.github/workflows/build-docker.yaml@main
     with:
       environment: ${{ needs.GlobalVariable.outputs.environment }}
-      image_repo: ${{ needs.GlobalVariable.outputs.image_tag }}
+      image_tag: ${{ needs.GlobalVariable.outputs.image_tag }}
+      image_tag_latest: ${{ needs.GlobalVariable.outputs.image_tag_latest }}
+      version: ${{ needs.GlobalVariable.outputs.version }}
       context: ./docker/test-build
     secrets: inherit
