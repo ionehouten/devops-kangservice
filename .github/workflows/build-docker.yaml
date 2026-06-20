@@ -6,10 +6,10 @@ on:
       environment:
         required: true
         type: string
-      image_tag:
+      image_ref:
         required: true
         type: string
-      image_tag_latest:
+      image_ref_latest:
         required: false
         type: string
       version:
@@ -60,7 +60,7 @@ jobs:
       - name: Authenticate to Registry
         uses: ionehouten/devops-kangservice/.github/actions/registry-login@main
         with:
-          image_repo: ${{ inputs.image_tag }}
+          image_ref: ${{ inputs.image_ref }}
           
           # AWS Variables
           aws_region: ${{ secrets.AWS_REGION }}
@@ -82,8 +82,8 @@ jobs:
       
       - name: Build Env
         run: |
-          echo "IMAGE_TAG=${{ inputs.image_tag }}" >> build.env
-          echo "IMAGE_TAG_LATEST=${{ inputs.image_tag_latest }}" >> build.env
+          echo "IMAGE_REF=${{ inputs.image_ref }}" >> build.env
+          echo "IMAGE_REF_LATEST=${{ inputs.image_ref_latest }}" >> build.env
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
@@ -92,8 +92,8 @@ jobs:
           file: ${{ inputs.context }}/${{ inputs.dockerfile }}
           push: true
           tags: |
-            ${{ inputs.image_tag }}
-            ${{ inputs.image_tag_latest }}
+            ${{ inputs.image_ref }}
+            ${{ inputs.image_ref_latest }}
           build-args: |
             APP_VERSION=${{ inputs.version }}
             BUILD_ENV=${{ inputs.environment }}

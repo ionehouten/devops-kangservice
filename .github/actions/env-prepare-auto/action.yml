@@ -78,12 +78,12 @@ outputs:
   version:
     description: 'Resolved version string'
     value: ${{ steps.meta.outputs.version }}
-  image_tag:
+  image_ref:
     description: 'Full image registry URL with version tag'
-    value: ${{ steps.meta.outputs.image_tag }}
-  image_tag_latest:
+    value: ${{ steps.meta.outputs.image_ref }}
+  image_ref_latest:
     description: 'Full image registry URL with latest tag (if applicable)'
-    value: ${{ steps.meta.outputs.image_tag_latest }}
+    value: ${{ steps.meta.outputs.image_ref_latest }}
   is_release:
     description: 'Boolean indicating if the build is from a release tag'
     value: ${{ steps.meta.outputs.is_release }}
@@ -190,10 +190,10 @@ runs:
         echo "" >> $GITHUB_STEP_SUMMARY
         
         echo "### 📦 Target Container Repositories" >> $GITHUB_STEP_SUMMARY
-        echo "- **Primary Tag:** \`${{ steps.meta.outputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Primary Tag:** \`${{ steps.meta.outputs.image_ref }}\`" >> $GITHUB_STEP_SUMMARY
         
-        if [[ -n "${{ steps.meta.outputs.image_tag_latest }}" ]]; then
-          echo "- **Latest Tag:** \`${{ steps.meta.outputs.image_tag_latest }}\`" >> $GITHUB_STEP_SUMMARY
+        if [[ -n "${{ steps.meta.outputs.image_ref_latest }}" ]]; then
+          echo "- **Latest Tag:** \`${{ steps.meta.outputs.image_ref_latest }}\`" >> $GITHUB_STEP_SUMMARY
         fi
         
         echo "" >> $GITHUB_STEP_SUMMARY

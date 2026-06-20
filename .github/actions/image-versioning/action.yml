@@ -20,13 +20,13 @@ outputs:
     description: Version
     value: ${{ steps.version.outputs.VERSION }}
 
-  image_tag:
-    description: Image Tag
-    value: ${{ steps.version.outputs.IMAGE_TAG }}
+  image_ref:
+    description: Image Ref
+    value: ${{ steps.version.outputs.IMAGE_REF }}
 
-  image_tag_latest:
-    description: Latest Image Tag
-    value: ${{ steps.version.outputs.IMAGE_TAG_LATEST }}
+  image_ref_latest:
+    description: Latest Image Ref
+    value: ${{ steps.version.outputs.IMAGE_REF_LATEST }}
 
   is_release:
     description: Is Release Tag
@@ -107,26 +107,26 @@ runs:
 
         fi
 
-        IMAGE_TAG="$REGISTRY:$VERSION$IMAGE_SUFFIX"
+        IMAGE_REF="$REGISTRY:$VERSION$IMAGE_SUFFIX"
 
-        IMAGE_TAG_LATEST=""
+        IMAGE_REF_LATEST=""
 
         if [[ "$IS_RELEASE" == "true" ]] || [[ "$IS_DEFAULT_BRANCH" == "true" ]]; then
-          IMAGE_TAG_LATEST="$REGISTRY:latest$IMAGE_SUFFIX"
+          IMAGE_REF_LATEST="$REGISTRY:latest$IMAGE_SUFFIX"
         fi
 
         echo "================================="
         echo "Ref Type          : $REF_TYPE"
         echo "Ref Name          : $REF_NAME"
         echo "Version           : $VERSION"
-        echo "Image Tag         : $IMAGE_TAG"
-        echo "Image Tag Latest  : $IMAGE_TAG_LATEST"
+        echo "Image Ref         : $IMAGE_REF"
+        echo "Image Ref Latest  : $IMAGE_REF_LATEST"
         echo "================================="
 
         echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_OUTPUT
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-        echo "IMAGE_TAG_LATEST=$IMAGE_TAG_LATEST" >> $GITHUB_OUTPUT
+        echo "IMAGE_REF=$IMAGE_REF" >> $GITHUB_OUTPUT
+        echo "IMAGE_REF_LATEST=$IMAGE_REF_LATEST" >> $GITHUB_OUTPUT
         echo "IS_RELEASE=$IS_RELEASE" >> $GITHUB_OUTPUT
         echo "IS_DEFAULT_BRANCH=$IS_DEFAULT_BRANCH" >> $GITHUB_OUTPUT
 

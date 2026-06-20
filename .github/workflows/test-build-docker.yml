@@ -36,8 +36,8 @@ jobs:
 
       short_sha: ${{ steps.prepare.outputs.short_sha }}
       version: ${{ steps.prepare.outputs.version }}
-      image_tag: ${{ steps.prepare.outputs.image_tag }}
-      image_tag_latest: ${{ steps.prepare.outputs.image_tag_latest }}
+      image_ref: ${{ steps.prepare.outputs.image_ref }}
+      image_ref_latest: ${{ steps.prepare.outputs.image_ref_latest }}
       is_release: ${{ steps.prepare.outputs.is_release }}
       is_default_branch: ${{ steps.prepare.outputs.is_default_branch }}
       
@@ -57,8 +57,8 @@ jobs:
     uses: ionehouten/devops-kangservice/.github/workflows/build-docker.yaml@main
     with:
       environment: ${{ needs.GlobalVariable.outputs.environment }}
-      image_tag: ${{ needs.GlobalVariable.outputs.image_tag }}
-      image_tag_latest: ${{ needs.GlobalVariable.outputs.image_tag_latest }}
+      image_ref: ${{ needs.GlobalVariable.outputs.image_ref }}
+      image_ref_latest: ${{ needs.GlobalVariable.outputs.image_ref_latest }}
       version: ${{ needs.GlobalVariable.outputs.version }}
       context: ./docker/test-build
     secrets: inherit

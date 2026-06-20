@@ -50,12 +50,12 @@ outputs:
   version:
     description: 'Resolved version string'
     value: ${{ steps.version_generator.outputs.VERSION }}
-  image_tag:
+  image_ref:
     description: 'Full image registry URL with version tag'
-    value: ${{ steps.version_generator.outputs.IMAGE_TAG }}
-  image_tag_latest:
+    value: ${{ steps.version_generator.outputs.IMAGE_REF }}
+  image_ref_latest:
     description: 'Full image registry URL with latest tag (if applicable)'
-    value: ${{ steps.version_generator.outputs.IMAGE_TAG_LATEST }}
+    value: ${{ steps.version_generator.outputs.IMAGE_REF_LATEST }}
   is_release:
     description: 'Boolean indicating if the build is from a release tag'
     value: ${{ steps.version_generator.outputs.IS_RELEASE }}
@@ -172,11 +172,11 @@ runs:
         fi
 
         # Assemble full image tags
-        IMAGE_TAG="$REGISTRY:$VERSION$IMAGE_SUFFIX"
-        IMAGE_TAG_LATEST=""
+        IMAGE_REF="$REGISTRY:$VERSION$IMAGE_SUFFIX"
+        IMAGE_REF_LATEST=""
 
         if [[ "$IS_RELEASE" == "true" ]] || [[ "$IS_DEFAULT_BRANCH" == "true" ]]; then
-          IMAGE_TAG_LATEST="$REGISTRY:latest$IMAGE_SUFFIX"
+          IMAGE_REF_LATEST="$REGISTRY:latest$IMAGE_SUFFIX"
         fi
 
         echo "================================="
@@ -184,14 +184,14 @@ runs:
         echo "Ref Name          : $REF_NAME"
         echo "Resolved Repo     : $REGISTRY"
         echo "Version           : $VERSION"
-        echo "Image Tag         : $IMAGE_TAG"
-        echo "Image Tag Latest  : $IMAGE_TAG_LATEST"
+        echo "Image Ref         : $IMAGE_REF"
+        echo "Image Ref Latest  : $IMAGE_REF_LATEST"
         echo "================================="
 
         # Export outputs
         echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_OUTPUT
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-        echo "IMAGE_TAG_LATEST=$IMAGE_TAG_LATEST" >> $GITHUB_OUTPUT
+        echo "IMAGE_REF=$IMAGE_REF" >> $GITHUB_OUTPUT
+        echo "IMAGE_REF_LATEST=$IMAGE_REF_LATEST" >> $GITHUB_OUTPUT
         echo "IS_RELEASE=$IS_RELEASE" >> $GITHUB_OUTPUT
         echo "IS_DEFAULT_BRANCH=$IS_DEFAULT_BRANCH" >> $GITHUB_OUTPUT
