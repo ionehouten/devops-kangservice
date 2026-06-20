@@ -1,5 +1,5 @@
-name: Workflow Test | build-docker
-run-name: Workflow Test | build-docker - ${{ inputs.environment }} - ${{ github.ref_name }} by @${{ github.actor }}
+name: Workflow Test | Build Docker
+run-name: Workflow Test | Build Docker - ${{ inputs.environment }} - ${{ github.ref_name }} by @${{ github.actor }}
 
 permissions:
   id-token: write
