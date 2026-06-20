@@ -1,0 +1,211 @@
+name: Security Scan
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  security-events: write
+
+on:
+  workflow_call:
+    inputs:
+      ghas_enabled:
+        description: 'Set true if private used GitHub Advanced Security License'
+        required: false
+        type: boolean
+        default: false
+      
+      image_ref:
+        description: 'Fully Image reference'
+        required: true
+        type: string
+
+      container_scan:
+        description: 'Run Container Scan'
+        required: false
+        type: boolean
+        default: true
+      
+    outputs:
+      container_scan_result:
+        value: ${{ jobs.ContainerScan.result }}
+      any_failed:
+        value: ${{ jobs.Summary.outputs.any_failed }}
+
+
+jobs:
+
+  ContainerScan:
+    if: ${{ inputs.container_scan && inputs.image_ref != '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Authenticate to Registry
+        uses: ionehouten/devops-kangservice/.github/actions/registry-login@main
+        with:
+          image_ref: ${{ inputs.image_ref }}
+          
+          # AWS Variables
+          aws_region: ${{ secrets.AWS_REGION }}
+          aws_role_to_assume: ${{ secrets.AWS_ROLE_ARN }}
+          
+          # GCP Variables
+          gcp_project_dev: ${{ secrets.GCP_PROJECT_ID_DEV }}
+          gcp_sa_dev: ${{ secrets.GCP_SA_DEV }}
+          gcp_project_stg: ${{ secrets.GCP_PROJECT_ID_STG }}
+          gcp_sa_stg: ${{ secrets.GCP_SA_STG }}
+          gcp_project_prd: ${{ secrets.GCP_PROJECT_ID_PRD }}
+          gcp_sa_prd: ${{ secrets.GCP_SA_PRD }}
+          
+          gcp_project_shared: ${{ secrets.GCP_PROJECT_ID_SHARED }}
+          gcp_sa_shared: ${{ secrets.GCP_SA_SHARED }}
+          
+          # GHCR Variables
+          ghcr_domain: ${{ secrets.GHCR_DOMAIN }}
+
+      - name: Scan Image
+        id: trivy
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{ inputs.image_ref }}"
+          severity: HIGH,CRITICAL
+          format: sarif
+          output: trivy-image.sarif
+          exit-code: 1
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-image-report
+          path: trivy-image.sarif
+
+      - name: Upload SARIF to Github Security
+        if: ${{ always() && (github.event.repository.visibility == 'public' || inputs.ghas_enabled == true) }}
+        uses: github/codeql-action/upload-sarif@v3 
+        with:
+          sarif_file: trivy-image.sarif
+
+      - name: Generate SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{ inputs.image_ref }}"
+          format: 'cyclonedx'
+          output: 'sbom.cdx.json'
+
+      - name: Upload SBOM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+      
+      - name: Submit SBOM to GitHub Dependency Graph
+        uses: actions/dependency-submission-action@v1
+        with:
+          correlator: "${{ github.job }}-${{ github.run_id }}"
+          snapshot-path: "sbom.cdx.json"
+
+      - name: Fail if vulnerabilities found
+        if: steps.trivy.outcome == 'failure'
+        run: exit 1
+
+  SignImage:
+    if: ${{ needs.ContainerScan.result == 'success' &&  inputs.container_scan && inputs.image_ref != ''  }}
+    needs: ['ContainerScan']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        run: |
+          cosign sign --yes ${{ inputs.image_ref }}
+
+    
+  Summary:
+    if: ${{ !cancelled() }}
+    needs: [ContainerScan]
+    runs-on: ubuntu-latest
+    outputs:
+      any_failed: ${{ steps.check.outputs.any_failed }}
+    steps:
+      - name: Check results
+        id: check
+        run: |
+          echo "ContainerScan=${{ needs.ContainerScan.result }}"
+
+          RESULTS="
+          ${{ needs.ContainerScan.result }}
+          "
+
+          if echo "$RESULTS" | grep -q failure; then
+            echo "any_failed=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "any_failed=false" >> $GITHUB_OUTPUT
+  
+  Reports:
+    if: ${{ always() }}
+    needs: [ContainerScan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: all-reports
+          merge-multiple: false 
+
+      # Merge All SARIF files into one folder
+      - name: Consolidate SARIF files
+        run: |
+          mkdir -p consolidated-reports
+          
+          # Copy and rename SARIF files
+          find all-reports -name "*.sarif" -type f | while read file; do
+            # Ambil nama folder sebagai prefix
+            folder=$(basename $(dirname "$file"))
+            filename=$(basename "$file")
+            
+            case "$folder" in
+              *trivy-image*) cp "$file" "consolidated-reports/4-trivy-container.sarif" ;;
+              *)            cp "$file" "consolidated-reports/$folder-$filename" ;;
+            esac
+          done
+          
+          # Copy SBOM if exists
+          # find all-reports -name "*.spdx.json" -type f -exec cp {} consolidated-reports/6-sbom.spdx.json \;
+          find all-reports -name "*.json" -type f -exec cp {} consolidated-reports/6-sbom.cdx.json \;
+          
+          # Results
+          echo "📦 Consolidated reports:"
+          ls -lh consolidated-reports/
+
+      - name: Upload consolidated reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-all
+          path: consolidated-reports/
+          retention-days: 30
+
+      - name: Generate Job Summary
+        run: |
+          echo "## 🔒 Security Image Scan Reports" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Semua laporan sudah digabung dalam 1 artifact:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 Download:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Nama:** \`security-reports-all\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Isi:** Semua file SARIF dari scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Cara membuka file SARIF:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Install VS Code extension: **SARIF Viewer**" >> $GITHUB_STEP_SUMMARY
+          echo "2. Buka file \`.sarif\` di VS Code" >> $GITHUB_STEP_SUMMARY
+          echo "3. Lihat detail vulnerability per baris code" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Files:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -1 consolidated-reports/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

@@ -57,13 +57,12 @@ jobs:
   
   CodeScan:
     needs: ['GlobalVariable']
-    uses: ionehouten/devops-kangservice/.github/workflows/security.yml@main
+    uses: ionehouten/devops-kangservice/.github/workflows/security-code.yml@main
     with:
       secret_scan: true
       sast_scan: true
       dependency_scan: true
       iac_scan: true
-      container_scan: false
     secrets: inherit
 
   Build:
@@ -79,12 +78,8 @@ jobs:
 
   ImageScan:
     needs: ['GlobalVariable','Build']
-    uses: ionehouten/devops-kangservice/.github/workflows/security.yml@main
+    uses: ionehouten/devops-kangservice/.github/workflows/security-image.yml@main
     with:
       image_ref: ${{ needs.GlobalVariable.outputs.image_ref }}
-      secret_scan: false
-      sast_scan: false
-      dependency_scan: false
-      iac_scan: false
       container_scan: true
     secrets: inherit
