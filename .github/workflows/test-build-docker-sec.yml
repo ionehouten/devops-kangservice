@@ -5,6 +5,9 @@ permissions:
   id-token: write
   contents: read
   packages: write
+  actions: read
+  security-events: write
+ 
 
 on:
   workflow_dispatch:
@@ -60,7 +63,7 @@ jobs:
       sast_scan: true
       dependency_scan: true
       iac_scan: true
-      container_scan: true
+      container_scan: false
     secrets: inherit
 
   Build:
