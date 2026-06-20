@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.prepare.outputs.environment }}
-      image_tag: ${{ steps.prepare.outputs.image_tag }}
+      image_ref: ${{ steps.prepare.outputs.image_ref }}
       image_suffix: ${{ steps.prepare.outputs.image_suffix }}
     steps:
       - name: Prepare Environment
@@ -84,11 +84,11 @@ jobs:
     uses: ionehouten/devops-kangservice/.github/workflows/build-docker.yaml@main
     with:
       environment: ${{ needs.GlobalVariable.outputs.environment }}
-      image_repo: ${{ needs.GlobalVariable.outputs.image_tag }}
+      image_repo: ${{ needs.GlobalVariable.outputs.image_ref }}
       image_suffix: ${{ needs.GlobalVariable.outputs.image_suffix }}
     secrets: inherit # Required to pass repository secrets into the reusable workflow
 ```
 
 ## 📦 Artifacts Generated
 - build: A zip artifact containing a build.env file. 
-  This file records the generated IMAGE_TAG and IMAGE_TAG_LATEST values used during the build process, which can be downloaded or consumed by down-stream deployment jobs.
+  This file records the generated image_ref and image_ref_LATEST values used during the build process, which can be downloaded or consumed by down-stream deployment jobs.

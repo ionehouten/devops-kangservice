@@ -410,8 +410,8 @@ jobs:
 
       short_sha: ${{ steps.prepare.outputs.short_sha }}
       version: ${{ steps.prepare.outputs.version }}
-      image_tag: ${{ steps.prepare.outputs.image_tag }}
-      image_tag_latest: ${{ steps.prepare.outputs.image_tag_latest }}
+      image_ref: ${{ steps.prepare.outputs.image_ref }}
+      image_ref_latest: ${{ steps.prepare.outputs.image_ref_latest }}
       is_release: ${{ steps.prepare.outputs.is_release }}
       is_default_branch: ${{ steps.prepare.outputs.is_default_branch }}
       
@@ -739,8 +739,8 @@ Both actions expose identical outputs.
 | image_suffix       | Image environment suffix                            |
 | overlays_path      | Target deployment folder mapping name               |
 | image_repo         | The finalized Image Repository URL without tags     |
-| image_tag          | Full image registry URL with version tag            |
-| image_tag_latest   | Full image registry URL with latest tag             |
+| image_ref          | Full image registry URL with version tag            |
+| image_ref_latest   | Full image registry URL with latest tag             |
 | short_sha          | Git commit short SHA (7 characters)                 |
 | version            | Resolved version string (tag name or branch prefix) |
 
@@ -777,8 +777,8 @@ Whether your organization uses a **Centralized Shared DevOps Project** (single c
 | Output | Type | Description |
 | :--- | :--- | :--- |
 | `image_repo` | `string` | The finalized Image Repository URL path without any version tags |
-| `image_tag` | `string` | Full image registry URL populated with the specific calculated version tag |
-| `image_tag_latest` | `string` | Full image registry URL populated with the `latest` tag (only appended if applicable) |
+| `image_ref` | `string` | Full image registry URL populated with the specific calculated version tag |
+| `image_ref_latest` | `string` | Full image registry URL populated with the `latest` tag (only appended if applicable) |
 | `short_sha` | `string` | Extracted 7-character Git commit short SHA |
 | `version` | `string` | Resolved raw version string (e.g., Git Tag name or `branch-<sanitized-name>`) |
 | `is_release` | `string` | Boolean string (`true`/`false`) indicating if the build originates from a release tag |
@@ -847,8 +847,8 @@ flowchart TD
 | ----------------- | ----------------- |
 | short_sha         | Git short SHA     |
 | version           | Generated version |
-| image_tag         | Full image tag    |
-| image_tag_latest  | Latest image tag  |
+| image_ref         | Full image tag    |
+| image_ref_latest  | Latest image tag  |
 | is_release        | LIs Release Tag   |
 | is_default_branch | Is Default Branch |
 
