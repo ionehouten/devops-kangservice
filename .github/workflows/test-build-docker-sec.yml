@@ -1,0 +1,87 @@
+name: Workflow Test | Build Docker (With Security)
+run-name: Workflow Test | Build Docker (With Security) - ${{ inputs.environment }} - ${{ github.ref_name }} by @${{ github.actor }}
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'Development'
+        type: choice
+        options:
+          - Development
+          - Staging
+          - Production
+
+env:
+  PROVIDER: GHCR
+  REGISTRY_DOMAIN: ghcr.io
+  REGISTRY_REPO: ionehouten
+  IMAGE_NAME: custom-nginx
+
+jobs:
+  GlobalVariable:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.prepare.outputs.environment }}
+      environment_suffix: ${{ steps.prepare.outputs.environment_suffix }}
+      image_suffix: ${{ steps.prepare.outputs.image_suffix }}
+      overlays_path: ${{ steps.prepare.outputs.overlays_path }}
+
+      short_sha: ${{ steps.prepare.outputs.short_sha }}
+      version: ${{ steps.prepare.outputs.version }}
+      image_ref: ${{ steps.prepare.outputs.image_ref }}
+      image_ref_latest: ${{ steps.prepare.outputs.image_ref_latest }}
+      is_release: ${{ steps.prepare.outputs.is_release }}
+      is_default_branch: ${{ steps.prepare.outputs.is_default_branch }}
+      
+    steps:
+      - name: Prepare Environment
+        id: prepare
+        uses: ionehouten/devops-kangservice/.github/actions/env-prepare-manual@main
+        with:
+          environment: ${{ inputs.environment }}
+          provider: ${{ env.PROVIDER }}
+          registry_domain: ${{ env.REGISTRY_DOMAIN }}
+          registry_repo: ${{ env.REGISTRY_REPO }}
+          image_name: ${{ env.IMAGE_NAME }}
+  
+  CodeScan:
+    needs: ['GlobalVariable']
+    uses: ionehouten/devops-kangservice/.github/workflows/security.yml@main
+    with:
+      secret_scan: true
+      sast_scan: true
+      dependency_scan: true
+      iac_scan: true
+      container_scan: true
+    secrets: inherit
+
+  Build:
+    needs: ['GlobalVariable']
+    uses: ionehouten/devops-kangservice/.github/workflows/build-docker.yml@main
+    with:
+      environment: ${{ needs.GlobalVariable.outputs.environment }}
+      image_ref: ${{ needs.GlobalVariable.outputs.image_ref }}
+      image_ref_latest: ${{ needs.GlobalVariable.outputs.image_ref_latest }}
+      version: ${{ needs.GlobalVariable.outputs.version }}
+      context: ./docker/test-build
+    secrets: inherit
+
+  ImageScan:
+    needs: ['GlobalVariable','Build']
+    uses: ionehouten/devops-kangservice/.github/workflows/security.yml@main
+    with:
+      image_ref: ${{ needs.GlobalVariable.outputs.image_ref }}
+      secret_scan: false
+      sast_scan: false
+      dependency_scan: false
+      iac_scan: false
+      container_scan: true
+    secrets: inherit
