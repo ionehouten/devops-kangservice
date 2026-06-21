@@ -1,31 +1,7 @@
-name: Security Scan
+name: Security Scan Reports
 
 on:
   workflow_call:
-    inputs:
-      ghas_enabled:
-        description: 'Set true if private used GitHub Advanced Security License'
-        required: false
-        type: boolean
-        default: false
-      
-      image_ref:
-        description: 'Fully Image reference'
-        required: true
-        type: string
-      
-      digest:
-        description: 'Image digest'
-        required: true
-        type: string
-
-      container_scan:
-        description: 'Run Container Scan'
-        required: false
-        type: boolean
-        default: true
-      
-
 
 jobs:
   

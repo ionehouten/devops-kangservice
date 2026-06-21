@@ -84,3 +84,8 @@ jobs:
       digest: ${{ needs.Build.outputs.digest }}
       container_scan: true
     secrets: inherit
+
+  SecurityReports:
+    needs: ['CodeScan','Build','ImageScan']
+    uses: ionehouten/devops-kangservice/.github/workflows/security-reports.yml@main
+    secrets: inherit
