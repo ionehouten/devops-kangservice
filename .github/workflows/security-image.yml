@@ -93,20 +93,19 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "${{ inputs.image_ref }}"
-          format: 'cyclonedx'
-          output: 'sbom.cdx.json'
+          format: 'spdx-json'
+          output: 'sbom.spdx.json'
 
       - name: Upload SBOM Artifact
         uses: actions/upload-artifact@v4
         with:
           name: sbom
-          path: sbom.cdx.json
+          path: sbom.spdx.json
       
       - name: Submit SBOM to GitHub Dependency Graph
-        uses: actions/dependency-submission-action@v1
+        uses: advanced-security/spdx-dependency-submission-action@v0.1.1
         with:
-          correlator: "${{ github.job }}-${{ github.run_id }}"
-          snapshot-path: "sbom.cdx.json"
+          file-path: "sbom.spdx.json"
 
       # - name: Fail if vulnerabilities found
       #   if: steps.trivy.outcome == 'failure'
@@ -172,14 +171,13 @@ jobs:
             filename=$(basename "$file")
             
             case "$folder" in
-              *trivy-image*) cp "$file" "security-image/4-trivy-container.sarif" ;;
+              *trivy-image*) cp "$file" "security-image/5-trivy-container.sarif" ;;
               *)            cp "$file" "security-image/$folder-$filename" ;;
             esac
           done
           
           # Copy SBOM if exists
-          # find all-reports -name "*.spdx.json" -type f -exec cp {} security-image/6-sbom.spdx.json \;
-          find all-reports -name "*.json" -type f -exec cp {} security-image/6-sbom.cdx.json \;
+          find all-reports -name "*.spdx.json" -type f -exec cp {} security-image/6-sbom.spdx.json \;
           
           # Results
           echo "📦 Consolidated reports:"
