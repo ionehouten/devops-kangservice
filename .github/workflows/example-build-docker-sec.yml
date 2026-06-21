@@ -81,5 +81,6 @@ jobs:
     uses: ionehouten/devops-kangservice/.github/workflows/security-image.yml@main
     with:
       image_ref: ${{ needs.GlobalVariable.outputs.image_ref }}
+      digest: ${{ needs.Build.outputs.digest }}
       container_scan: true
     secrets: inherit

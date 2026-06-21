@@ -23,6 +23,9 @@ on:
         required: false
         type: string
         default: Dockerfile
+    outputs:
+      digest:
+        value: ${{ jobs.Build.outputs.digest }}
 
     secrets:
       AWS_REGION:
@@ -51,6 +54,8 @@ on:
 jobs:
   Build:
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build-and-push.outputs.digest }}
     steps: 
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -90,6 +95,7 @@ jobs:
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
+        id: build-and-push
         with:
           context: ${{ inputs.context }}
           file: ${{ inputs.context }}/${{ inputs.dockerfile }}
