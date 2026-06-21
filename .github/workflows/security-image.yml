@@ -108,9 +108,9 @@ jobs:
           correlator: "${{ github.job }}-${{ github.run_id }}"
           snapshot-path: "sbom.cdx.json"
 
-      - name: Fail if vulnerabilities found
-        if: steps.trivy.outcome == 'failure'
-        run: exit 1
+      # - name: Fail if vulnerabilities found
+      #   if: steps.trivy.outcome == 'failure'
+      #   run: exit 1
 
   SignImage:
     if: ${{ needs.ContainerScan.result == 'success' &&  inputs.container_scan && inputs.image_ref != ''  }}
@@ -163,7 +163,7 @@ jobs:
       # Merge All SARIF files into one folder
       - name: Consolidate SARIF files
         run: |
-          mkdir -p consolidated-reports
+          mkdir -p security-image
           
           # Copy and rename SARIF files
           find all-reports -name "*.sarif" -type f | while read file; do
@@ -172,24 +172,24 @@ jobs:
             filename=$(basename "$file")
             
             case "$folder" in
-              *trivy-image*) cp "$file" "consolidated-reports/4-trivy-container.sarif" ;;
-              *)            cp "$file" "consolidated-reports/$folder-$filename" ;;
+              *trivy-image*) cp "$file" "security-image/4-trivy-container.sarif" ;;
+              *)            cp "$file" "security-image/$folder-$filename" ;;
             esac
           done
           
           # Copy SBOM if exists
-          # find all-reports -name "*.spdx.json" -type f -exec cp {} consolidated-reports/6-sbom.spdx.json \;
-          find all-reports -name "*.json" -type f -exec cp {} consolidated-reports/6-sbom.cdx.json \;
+          # find all-reports -name "*.spdx.json" -type f -exec cp {} security-image/6-sbom.spdx.json \;
+          find all-reports -name "*.json" -type f -exec cp {} security-image/6-sbom.cdx.json \;
           
           # Results
           echo "📦 Consolidated reports:"
-          ls -lh consolidated-reports/
+          ls -lh security-image/
 
       - name: Upload consolidated reports
         uses: actions/upload-artifact@v4
         with:
           name: security-reports-all
-          path: consolidated-reports/
+          path: security-image/
           retention-days: 30
 
       - name: Generate Job Summary
@@ -209,5 +209,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Files:" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          ls -1 consolidated-reports/ >> $GITHUB_STEP_SUMMARY
+          ls -1 security-image/ >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

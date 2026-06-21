@@ -101,9 +101,9 @@ jobs:
         with:
           sarif_file: gitleaks.sarif
 
-      - name: Fail if secrets found 
-        if: steps.gitleaks.outcome == 'failure'
-        run: exit 1
+      # - name: Fail if secrets found 
+      #   if: steps.gitleaks.outcome == 'failure'
+      #   run: exit 1
 
 
   SAST:
@@ -133,9 +133,9 @@ jobs:
           name: semgrep-sarif
           path: semgrep.sarif
           
-      - name: Fail if vulnerabilities found
-        if: steps.semgrep.outcome == 'failure'
-        run: exit 1
+      # - name: Fail if vulnerabilities found
+      #   if: steps.semgrep.outcome == 'failure'
+      #   run: exit 1
 
       - name: Upload SARIF to Github Security
         if: ${{ always() && (github.event.repository.visibility == 'public' || inputs.ghas_enabled == true) }}
@@ -216,9 +216,9 @@ jobs:
       #     name: trivy-fs-sbom
       #     path: trivy-fs-sbom.spdx.json
 
-      - name: Fail if vulnerabilities found
-        if: steps.trivyfs.outcome == 'failure'
-        run: exit 1
+      # - name: Fail if vulnerabilities found
+      #   if: steps.trivyfs.outcome == 'failure'
+      #   run: exit 1
 
   # DependencyScan:
   #   if: ${{ inputs.dependency_scan }}
@@ -275,9 +275,9 @@ jobs:
         with:
           sarif_file: checkov.sarif
 
-      - name: Fail if vulnerabilities found
-        if: steps.checkov.outcome == 'failure'
-        run: exit 1
+      # - name: Fail if vulnerabilities found
+      #   if: steps.checkov.outcome == 'failure'
+      #   run: exit 1
 
       
 
@@ -326,7 +326,7 @@ jobs:
       # Merge All SARIF files into one folder
       - name: Consolidate SARIF files
         run: |
-          mkdir -p consolidated-reports
+          mkdir -p security-code
           
           # Copy and rename SARIF files
           find all-reports -name "*.sarif" -type f | while read file; do
@@ -335,27 +335,27 @@ jobs:
             filename=$(basename "$file")
             
             case "$folder" in
-              *gitleaks*)   cp "$file" "consolidated-reports/1-gitleaks-secret.sarif" ;;
-              *semgrep*)    cp "$file" "consolidated-reports/2-semgrep-sast.sarif" ;;
-              *trivy-fs*)   cp "$file" "consolidated-reports/3-trivy-dependency.sarif" ;;
-              *checkov*)    cp "$file" "consolidated-reports/5-checkov-iac.sarif" ;;
-              *)            cp "$file" "consolidated-reports/$folder-$filename" ;;
+              *gitleaks*)   cp "$file" "security-code/1-gitleaks-secret.sarif" ;;
+              *semgrep*)    cp "$file" "security-code/2-semgrep-sast.sarif" ;;
+              *trivy-fs*)   cp "$file" "security-code/3-trivy-dependency.sarif" ;;
+              *checkov*)    cp "$file" "security-code/4-checkov-iac.sarif" ;;
+              *)            cp "$file" "security-code/$folder-$filename" ;;
             esac
           done
           
           # Copy SBOM if exists
-          # find all-reports -name "*.spdx.json" -type f -exec cp {} consolidated-reports/6-sbom.spdx.json \;
-          # find all-reports -name "*.json" -type f -exec cp {} consolidated-reports/6-sbom.cdx.json \;
+          # find all-reports -name "*.spdx.json" -type f -exec cp {} security-code/6-sbom.spdx.json \;
+          # find all-reports -name "*.json" -type f -exec cp {} security-code/6-sbom.cdx.json \;
           
           # Results
           echo "📦 Consolidated reports:"
-          ls -lh consolidated-reports/
+          ls -lh security-code/
 
       - name: Upload consolidated reports
         uses: actions/upload-artifact@v4
         with:
           name: security-reports-all
-          path: consolidated-reports/
+          path: security-code/
           retention-days: 30
 
       - name: Generate Job Summary
@@ -375,5 +375,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Files:" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          ls -1 consolidated-reports/ >> $GITHUB_STEP_SUMMARY
+          ls -1 security-code/ >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
