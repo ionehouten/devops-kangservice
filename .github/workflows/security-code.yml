@@ -302,15 +302,17 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       any_failed: ${{ steps.check.outputs.any_failed }}
+    env:
+      OUTCOME_SECRET: ${{ needs.SecretScan.outputs.outcome }}
+      OUTCOME_SAST: ${{ needs.SAST.outputs.outcome }}
+      OUTCOME_SONAR: ${{ needs.SonarQubeScan.outputs.outcome }}
+      OUTCOME_DEPENDENCY: ${{ needs.DependencyScan.outputs.outcome }}
+      OUTCOME_IAC: ${{ needs.IaCScan.outputs.outcome }}
+      FAIL_ON_VULN: ${{ inputs.fail_on_vulnerability }}
     steps:
       - name: Generate Security Report Summary
         id: check
         run: |
-          SECRET="${{ needs.SecretScan.outputs.outcome }}"
-          SAST="${{ needs.SAST.outputs.outcome }}"
-          SONAR="${{ needs.SonarQubeScan.outputs.outcome }}"
-          DEPENDENCY="${{ needs.DependencyScan.outputs.outcome }}"
-          IAC="${{ needs.IaCScan.outputs.outcome }}"
 
           get_status_em() {
             case "$1" in
@@ -320,14 +322,14 @@ jobs:
             esac
           }
 
-          STATUS_SECRET=$(get_status_em "$SECRET")
-          STATUS_SAST=$(get_status_em "$SAST")
-          STATUS_SONAR=$(get_status_em "$SONAR")
-          STATUS_DEPENDENCY=$(get_status_em "$DEPENDENCY")
-          STATUS_IAC=$(get_status_em "$IAC")
+          STATUS_SECRET=$(get_status_em "$OUTCOME_SECRET")
+          STATUS_SAST=$(get_status_em "$OUTCOME_SAST")
+          STATUS_SONAR=$(get_status_em "$OUTCOME_SONAR")
+          STATUS_DEPENDENCY=$(get_status_em "$OUTCOME_DEPENDENCY")
+          STATUS_IAC=$(get_status_em "$OUTCOME_IAC")
 
           ANY_FAILED="false"
-          RESULTS="$SECRET $SAST $SONAR $DEPENDENCY $IAC"
+          RESULTS="$OUTCOME_SECRET $OUTCOME_SAST $OUTCOME_SONAR $OUTCOME_DEPENDENCY $OUTCOME_IAC"
           if echo "$RESULTS" | grep -q failure; then
             ANY_FAILED="true"
           fi
@@ -359,7 +361,7 @@ jobs:
             echo "1. Buka tab **Security** > **Code scanning** untuk melihat detail baris kode." >> $GITHUB_STEP_SUMMARY
             echo "2. Periksa bagian **Artifacts** jika membutuhkan file `.sarif`." >> $GITHUB_STEP_SUMMARY
 
-            if [ "${{ inputs.fail_on_vulnerability }}" = "true" ]; then
+            if [ "$FAIL_ON_VULN" = "true" ]; then
               echo "::error title=🔒 Security Scan Failed::Workflow dihentikan karena fail_on_vulnerability diset true."
               exit 1
             else

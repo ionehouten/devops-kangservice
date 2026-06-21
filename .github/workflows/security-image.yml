@@ -163,12 +163,13 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       any_failed: ${{ steps.check.outputs.any_failed }}
+    env:
+      OUTCOME_CONTAINER: ${{ needs.ContainerScan.outputs.outcome }}
+      FAIL_ON_VULN: ${{ inputs.fail_on_vulnerability }}
     steps:
       - name: Generate Security Report Summary
         id: check
         run: |
-          CONTAINER="${{ needs.ContainerScan.outputs.outcome }}"
-          
           get_status_em() {
             case "$1" in
               success) echo "🟢 Success" ;;
@@ -177,10 +178,10 @@ jobs:
             esac
           }
 
-          STATUS_CONTAINER=$(get_status_em "$CONTAINER")
+          STATUS_CONTAINER=$(get_status_em "$OUTCOME_CONTAINER")
 
           ANY_FAILED="false"
-          RESULTS="$CONTAINER"
+          RESULTS="$OUTCOME_CONTAINER"
           if echo "$RESULTS" | grep -q failure; then
             ANY_FAILED="true"
           fi
@@ -207,7 +208,7 @@ jobs:
             echo "1. Buka tab **Security** > **Container scanning** untuk melihat detail baris kode." >> $GITHUB_STEP_SUMMARY
             echo "2. Periksa bagian **Artifacts** jika membutuhkan file `.sarif`." >> $GITHUB_STEP_SUMMARY
 
-            if [ "${{ inputs.fail_on_vulnerability }}" = "true" ]; then
+            if [ "$FAIL_ON_VULN" = "true" ]; then
               echo "::error title=🔒 Security Scan Failed::Workflow dihentikan karena fail_on_vulnerability diset true."
               exit 1
             else
