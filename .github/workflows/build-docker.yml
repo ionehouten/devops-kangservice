@@ -101,6 +101,8 @@ jobs:
           context: ${{ inputs.context }}
           file: ${{ inputs.context }}/${{ inputs.dockerfile }}
           push: true
+          cache-from: type=registry,ref=${{ inputs.image_ref_latest }}
+          cache-to: type=inline
           tags: |
             ${{ inputs.image_ref }}
             ${{ inputs.image_ref_latest }}
