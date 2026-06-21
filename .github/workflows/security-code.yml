@@ -14,6 +14,12 @@ on:
         required: false
         type: boolean
         default: false
+       
+      fail_on_vulnerability:
+        description: 'If true, workflow can exit 1 if vulnerability found.'
+        required: false
+        type: boolean
+        default: false
 
       secret_scan:
         description: 'Run Secret Scan'
@@ -292,37 +298,84 @@ jobs:
       
   Summary:
     if: ${{ !cancelled() }}
-    needs: [SecretScan, SAST, SonarQubeScan, DependencyScan,  IaCScan]
+    needs: [SecretScan, SAST, SonarQubeScan, DependencyScan, IaCScan]
     runs-on: ubuntu-latest
     outputs:
       any_failed: ${{ steps.check.outputs.any_failed }}
     steps:
-      - name: Check results
+      - name: Generate Security Report Summary
         id: check
         run: |
-          echo "## 🔒 Security Code Reports" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          SECRET="${{ needs.SecretScan.outputs.outcome }}"
+          SAST="${{ needs.SAST.outputs.outcome }}"
+          SONAR="${{ needs.SonarQubeScan.outputs.outcome }}"
+          DEPENDENCY="${{ needs.DependencyScan.outputs.outcome }}"
+          IAC="${{ needs.IaCScan.outputs.outcome }}"
 
-          echo "SecretScan=${{ needs.SecretScan.outputs.outcome }}" >> $GITHUB_STEP_SUMMARY
-          echo "SAST=${{ needs.SAST.outputs.outcome }}" >> $GITHUB_STEP_SUMMARY
-          echo "SonarQubeScan=${{ needs.SonarQubeScan.outputs.outcome }}" >> $GITHUB_STEP_SUMMARY
-          echo "DependencyScan=${{ needs.DependencyScan.outputs.outcome }}" >> $GITHUB_STEP_SUMMARY
-          echo "IaCScan=${{ needs.IaCScan.outputs.outcome }}" >> $GITHUB_STEP_SUMMARY
+          get_status_em() {
+            case "$1" in
+              success) echo "🟢 Success" ;;
+              failure) echo "🔴 Failure (Temuan Ditemukan!)" ;;
+              skipped|*) echo "⚪ Skipped / Not Run" ;;
+            esac
+          }
 
-          echo "" >> $GITHUB_STEP_SUMMARY
+          STATUS_SECRET=$(get_status_em "$SECRET")
+          STATUS_SAST=$(get_status_em "$SAST")
+          STATUS_SONAR=$(get_status_em "$SONAR")
+          STATUS_DEPENDENCY=$(get_status_em "$DEPENDENCY")
+          STATUS_IAC=$(get_status_em "$IAC")
 
-          RESULTS="
-          ${{ needs.SecretScan.outputs.outcome }}
-          ${{ needs.SAST.outputs.outcome }}
-          ${{ needs.SonarQubeScan.outputs.outcome }}
-          ${{ needs.DependencyScan.outputs.outcome }}
-          ${{ needs.IaCScan.outputs.outcome }}
-          "
-
+          ANY_FAILED="false"
+          RESULTS="$SECRET $SAST $SONAR $DEPENDENCY $IAC"
           if echo "$RESULTS" | grep -q failure; then
-            echo "any_failed=true" >> $GITHUB_OUTPUT
-            exit 1
+            ANY_FAILED="true"
           fi
 
-          echo "any_failed=false" >> $GITHUB_OUTPUT
+          echo "## 🔒 Security Code Scan Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$ANY_FAILED" = "true" ]; then
+            echo "> ⚠️ **WARNING:** Ditemukan celah keamanan atau kegagalan pada proses pemindaian. Silakan periksa detail tab *Security* atau unduh *artifact* yang tersedia." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "> ✅ **SUCCESS:** Semua pemindaian kode berhasil dilewati tanpa kendala kritis." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Scanner | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔑 Secret Scan (Gitleaks) | $STATUS_SECRET |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🛡️ SAST Scan (Semgrep) | $STATUS_SAST |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🦊 SonarQube Scan | $STATUS_SONAR |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Dependency Scan (Trivy) | $STATUS_DEPENDENCY |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏗️ IaC Scan (Checkov) | $STATUS_IAC |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+
+          if [ "$ANY_FAILED" = "true" ]; then
+            echo "any_failed=true" >> $GITHUB_OUTPUT
+            
+            echo "### 🛠️ Langkah Penyelesaian" >> $GITHUB_STEP_SUMMARY
+            echo "1. Buka tab **Security** > **Code scanning** untuk melihat detail baris kode." >> $GITHUB_STEP_SUMMARY
+            echo "2. Periksa bagian **Artifacts** jika membutuhkan file `.sarif`." >> $GITHUB_STEP_SUMMARY
+
+            if [ "${{ inputs.fail_on_vulnerability }}" = "true" ]; then
+              echo "::error title=🔒 Security Scan Failed::Workflow dihentikan karena fail_on_vulnerability diset true."
+              exit 1
+            else
+              echo "::warning title=🔒 Security Scan Alert::Ditemukan celah keamanan, namun workflow tetap dilanjutkan (fail_on_vulnerability=false)."
+            fi
+          else
+            echo "any_failed=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Comment PR dengan Hasil Scan
+        if: ${{ steps.check.outputs.any_failed == 'true' && github.event_name == 'pull_request' }}
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            ## ⚠️ 🔒 SECURITY CODE SCAN ALERT
+            Halo @${{ github.actor }}, pemindaian otomatis mendeteksi adanya celah keamanan atau rahasia (*secret*) yang bocor pada commit ini.
+            
+            Silakan cek detail lengkapnya pada tab **Actions** -> **Security Code Scan Report** di repositori ini sebelum melakukan merge!
   
