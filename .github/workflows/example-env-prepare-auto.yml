@@ -1,5 +1,5 @@
-name: Action Test | env-prepare-auto
-run-name: Action Test | env-prepare-auto - ${{ github.ref_name }} by @${{ github.actor }}
+name: Example Action | env-prepare-auto
+run-name: Example Action | env-prepare-auto - ${{ github.ref_name }} by @${{ github.actor }}
 
 on:
   workflow_dispatch:

@@ -1,5 +1,10 @@
-name: Action Test | env-prepare-manual
-run-name: Action Test | env-prepare-manual - ${{ inputs.environment }} - ${{ github.ref_name }} by @${{ github.actor }}
+name: Example | Build Docker
+run-name: Example | Build Docker - ${{ inputs.environment }} - ${{ github.ref_name }} by @${{ github.actor }}
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
 
 on:
   workflow_dispatch:
@@ -31,8 +36,8 @@ jobs:
 
       short_sha: ${{ steps.prepare.outputs.short_sha }}
       version: ${{ steps.prepare.outputs.version }}
-      image_tag: ${{ steps.prepare.outputs.image_tag }}
-      image_tag_latest: ${{ steps.prepare.outputs.image_tag_latest }}
+      image_ref: ${{ steps.prepare.outputs.image_ref }}
+      image_ref_latest: ${{ steps.prepare.outputs.image_ref_latest }}
       is_release: ${{ steps.prepare.outputs.is_release }}
       is_default_branch: ${{ steps.prepare.outputs.is_default_branch }}
       
@@ -47,3 +52,13 @@ jobs:
           registry_repo: ${{ env.REGISTRY_REPO }}
           image_name: ${{ env.IMAGE_NAME }}
 
+  Build:
+    needs: ['GlobalVariable']
+    uses: ionehouten/devops-kangservice/.github/workflows/build-docker.yaml@main
+    with:
+      environment: ${{ needs.GlobalVariable.outputs.environment }}
+      image_ref: ${{ needs.GlobalVariable.outputs.image_ref }}
+      image_ref_latest: ${{ needs.GlobalVariable.outputs.image_ref_latest }}
+      version: ${{ needs.GlobalVariable.outputs.version }}
+      context: ./docker/test-build
+    secrets: inherit
