@@ -3,7 +3,7 @@ run-name: Workflow Test | Build Docker (With Security) - ${{ inputs.environment 
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
   packages: write
   actions: read
   security-events: write
