@@ -4,8 +4,9 @@ permissions:
   contents: write
   actions: read
   id-token: write
+  packages: write
   security-events: write
-
+  
 on:
   workflow_call:
     inputs:
