@@ -48,15 +48,15 @@ on:
 
     outputs:
       secret_scan_result:
-        value: ${{ jobs.SecretScan.result }}
+        value: ${{ jobs.SecretScan.outputs.outcome }}
       sast_result:
-        value: ${{ jobs.SAST.result }}
+        value: ${{ jobs.SAST.outputs.outcome }}
       sonarqube_result:
         value: ${{ jobs.SonarQubeScan.result }}
       dependency_result:
-        value: ${{ jobs.DependencyScan.result }}
+        value: ${{ jobs.DependencyScan.outputs.outcome }}
       iac_result:
-        value: ${{ jobs.IaCScan.result }}
+        value: ${{ jobs.IaCScan.outputs.outcome }}
       any_failed:
         value: ${{ jobs.Summary.outputs.any_failed }}
 
@@ -65,6 +65,8 @@ jobs:
   SecretScan:
     if: ${{ inputs.secret_scan }}
     runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.gitleaks.outcome }}
     steps:
       - uses: actions/checkout@v6
       - name: Run Gitleaks
@@ -109,6 +111,8 @@ jobs:
   SAST:
     if: ${{ inputs.sast_scan }}
     runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.semgrep.outcome }}
     container:
       image: semgrep/semgrep
       
@@ -154,12 +158,15 @@ jobs:
   SonarQubeScan:
     if: ${{ inputs.sonarqube_scan }}
     runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.sonar.outcome }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: SonarQube Scan
+        id: sonar
         uses: sonarsource/sonarqube-scan-action@v4
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -168,7 +175,8 @@ jobs:
   DependencyScan:
     if: ${{ inputs.dependency_scan }}
     runs-on: ubuntu-latest
-
+    outputs:
+      outcome: ${{ steps.trivyfs.outcome }}
     steps:
       - uses: actions/checkout@v6
 
@@ -249,6 +257,8 @@ jobs:
   IaCScan:
     if: ${{ inputs.iac_scan }}
     runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.checkov.outcome }}
     steps:
       - uses: actions/checkout@v6
 
@@ -280,7 +290,6 @@ jobs:
       #   run: exit 1
 
       
-
   Summary:
     if: ${{ !cancelled() }}
     needs: [SecretScan, SAST, SonarQubeScan, DependencyScan,  IaCScan]
@@ -291,18 +300,18 @@ jobs:
       - name: Check results
         id: check
         run: |
-          echo "SecretScan=${{ needs.SecretScan.result }}"
-          echo "SAST=${{ needs.SAST.result }}"
-          echo "SonarQubeScan=${{ needs.SonarQubeScan.result }}"
-          echo "DependencyScan=${{ needs.DependencyScan.result }}"
-          echo "IaCScan=${{ needs.IaCScan.result }}"
+          echo "SecretScan=${{ needs.SecretScan.outputs.outcome }}"
+          echo "SAST=${{ needs.SAST.outputs.outcome }}"
+          echo "SonarQubeScan=${{ needs.SonarQubeScan.outputs.outcome }}"
+          echo "DependencyScan=${{ needs.DependencyScan.outputs.outcome }}"
+          echo "IaCScan=${{ needs.IaCScan.outputs.outcome }}"
 
           RESULTS="
-          ${{ needs.SecretScan.result }}
-          ${{ needs.SAST.result }}
-          ${{ needs.SonarQubeScan.result }}
-          ${{ needs.DependencyScan.result }}
-          ${{ needs.IaCScan.result }}
+          ${{ needs.SecretScan.outputs.outcome }}
+          ${{ needs.SAST.outputs.outcome }}
+          ${{ needs.SonarQubeScan.outputs.outcome }}
+          ${{ needs.DependencyScan.outputs.outcome }}
+          ${{ needs.IaCScan.outputs.outcome }}
           "
 
           if echo "$RESULTS" | grep -q failure; then
@@ -312,68 +321,3 @@ jobs:
 
           echo "any_failed=false" >> $GITHUB_OUTPUT
   
-  Reports:
-    if: ${{ always() }}
-    needs: [SecretScan, SAST, DependencyScan, IaCScan]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: all-reports
-          merge-multiple: false 
-
-      # Merge All SARIF files into one folder
-      - name: Consolidate SARIF files
-        run: |
-          mkdir -p security-code
-          
-          # Copy and rename SARIF files
-          find all-reports -name "*.sarif" -type f | while read file; do
-            # Ambil nama folder sebagai prefix
-            folder=$(basename $(dirname "$file"))
-            filename=$(basename "$file")
-            
-            case "$folder" in
-              *gitleaks*)   cp "$file" "security-code/1-gitleaks-secret.sarif" ;;
-              *semgrep*)    cp "$file" "security-code/2-semgrep-sast.sarif" ;;
-              *trivy-fs*)   cp "$file" "security-code/3-trivy-dependency.sarif" ;;
-              *checkov*)    cp "$file" "security-code/4-checkov-iac.sarif" ;;
-              *)            cp "$file" "security-code/$folder-$filename" ;;
-            esac
-          done
-          
-          # Copy SBOM if exists
-          # find all-reports -name "*.spdx.json" -type f -exec cp {} security-code/6-sbom.spdx.json \;
-          # find all-reports -name "*.json" -type f -exec cp {} security-code/6-sbom.cdx.json \;
-          
-          # Results
-          echo "📦 Consolidated reports:"
-          ls -lh security-code/
-
-      - name: Upload consolidated reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports-all
-          path: security-code/
-          retention-days: 30
-
-      - name: Generate Job Summary
-        run: |
-          echo "## 🔒 Security Code Scan Reports" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Semua laporan sudah digabung dalam 1 artifact:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📥 Download:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Nama:** \`security-reports-all\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Isi:** Semua file SARIF dari scan" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Cara membuka file SARIF:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Install VS Code extension: **SARIF Viewer**" >> $GITHUB_STEP_SUMMARY
-          echo "2. Buka file \`.sarif\` di VS Code" >> $GITHUB_STEP_SUMMARY
-          echo "3. Lihat detail vulnerability per baris code" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Files:" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          ls -1 security-code/ >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY

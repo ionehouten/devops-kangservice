@@ -37,7 +37,8 @@ jobs:
   ContainerScan:
     if: ${{ inputs.container_scan && inputs.image_ref != '' }}
     runs-on: ubuntu-latest
-
+    outputs:
+      outcome: ${{ steps.trivy.outcome }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -66,7 +67,6 @@ jobs:
           ghcr_domain: ${{ secrets.GHCR_DOMAIN }}
           ghcr_token: ${{ secrets.GITHUB_TOKEN }}
           
-
       - name: Scan Image
         id: trivy
         continue-on-error: true
@@ -147,9 +147,9 @@ jobs:
       - uses: sigstore/cosign-installer@v3
 
       - name: Sign image
+        id: sign
         run: |
           cosign sign --yes "$IMAGE_REF@$DIGEST"
-
     
   Summary:
     if: ${{ !cancelled() }}
@@ -161,10 +161,10 @@ jobs:
       - name: Check results
         id: check
         run: |
-          echo "ContainerScan=${{ needs.ContainerScan.result }}"
+          echo "ContainerScan=${{ needs.ContainerScan.outputs.outcome }}"
 
           RESULTS="
-          ${{ needs.ContainerScan.result }}
+          ${{ needs.ContainerScan.outputs.outcome }}
           "
 
           if echo "$RESULTS" | grep -q failure; then
@@ -174,64 +174,3 @@ jobs:
 
           echo "any_failed=false" >> $GITHUB_OUTPUT
   
-  Reports:
-    if: ${{ always() }}
-    needs: [ContainerScan]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: all-reports
-          merge-multiple: false 
-
-      # Merge All SARIF files into one folder
-      - name: Consolidate SARIF files
-        run: |
-          mkdir -p security-image
-          
-          # Copy and rename SARIF files
-          find all-reports -name "*.sarif" -type f | while read file; do
-            # Ambil nama folder sebagai prefix
-            folder=$(basename $(dirname "$file"))
-            filename=$(basename "$file")
-            
-            case "$folder" in
-              *trivy-image*) cp "$file" "security-image/5-trivy-container.sarif" ;;
-              *)            cp "$file" "security-image/$folder-$filename" ;;
-            esac
-          done
-          
-          # Copy SBOM if exists
-          find all-reports -name "*.spdx.json" -type f -exec cp {} security-image/6-sbom.spdx.json \;
-          
-          # Results
-          echo "📦 Consolidated reports:"
-          ls -lh security-image/
-
-      - name: Upload consolidated reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports-all
-          path: security-image/
-          retention-days: 30
-
-      - name: Generate Job Summary
-        run: |
-          echo "## 🔒 Security Image Scan Reports" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Semua laporan sudah digabung dalam 1 artifact:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📥 Download:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Nama:** \`security-reports-all\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Isi:** Semua file SARIF dari scan" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Cara membuka file SARIF:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Install VS Code extension: **SARIF Viewer**" >> $GITHUB_STEP_SUMMARY
-          echo "2. Buka file \`.sarif\` di VS Code" >> $GITHUB_STEP_SUMMARY
-          echo "3. Lihat detail vulnerability per baris code" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Files:" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          ls -1 security-image/ >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,94 @@
+name: Security Scan
+
+on:
+  workflow_call:
+    inputs:
+      ghas_enabled:
+        description: 'Set true if private used GitHub Advanced Security License'
+        required: false
+        type: boolean
+        default: false
+      
+      image_ref:
+        description: 'Fully Image reference'
+        required: true
+        type: string
+      
+      digest:
+        description: 'Image digest'
+        required: true
+        type: string
+
+      container_scan:
+        description: 'Run Container Scan'
+        required: false
+        type: boolean
+        default: true
+      
+
+
+jobs:
+  
+  Reports:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: all-reports
+          merge-multiple: false 
+
+      # Merge All SARIF files into one folder
+      - name: Consolidate SARIF files
+        run: |
+          mkdir -p security-image
+          
+          # Copy and rename SARIF files
+          find all-reports -name "*.sarif" -type f | while read file; do
+            # Ambil nama folder sebagai prefix
+            folder=$(basename $(dirname "$file"))
+            filename=$(basename "$file")
+            
+            case "$folder" in
+              *gitleaks*)     cp "$file" "security-reports/1-gitleaks-secret.sarif" ;;
+              *semgrep*)      cp "$file" "security-reports/2-semgrep-sast.sarif" ;;
+              *trivy-fs*)     cp "$file" "security-reports/3-trivy-dependency.sarif" ;;
+              *checkov*)      cp "$file" "security-reports/4-checkov-iac.sarif" ;;
+              *trivy-image*)  cp "$file" "security-reports/5-trivy-container.sarif" ;;
+              *)              cp "$file" "security-reports/$folder-$filename" ;;
+            esac
+          done
+          
+          # Copy SBOM if exists
+          find all-reports -name "*.spdx.json" -type f -exec cp {} security-reports/6-sbom.spdx.json \;
+          
+          # Results
+          echo "📦 Consolidated reports:"
+          ls -lh security-reports/
+
+      - name: Upload consolidated reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-all
+          path: security-reports/
+          retention-days: 30
+
+      - name: Generate Job Summary
+        run: |
+          echo "## 🔒 Security Scan Reports" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Semua laporan sudah digabung dalam 1 artifact:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 Download:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Nama:** \`security-reports-all\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Isi:** Semua file SARIF dari scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Cara membuka file SARIF:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Install VS Code extension: **SARIF Viewer**" >> $GITHUB_STEP_SUMMARY
+          echo "2. Buka file \`.sarif\` di VS Code" >> $GITHUB_STEP_SUMMARY
+          echo "3. Lihat detail vulnerability per baris code" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Files:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -1 security-image/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
