@@ -1,12 +1,5 @@
 name: Security Scan
 
-permissions:
-  contents: write
-  actions: read
-  id-token: write
-  packages: write
-  security-events: write
-  
 on:
   workflow_call:
     inputs:
@@ -72,6 +65,7 @@ jobs:
           # GHCR Variables
           ghcr_domain: ${{ secrets.GHCR_DOMAIN }}
           ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+          
 
       - name: Scan Image
         id: trivy
@@ -148,6 +142,7 @@ jobs:
           
           # GHCR Variables
           ghcr_domain: ${{ secrets.GHCR_DOMAIN }}
+          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: sigstore/cosign-installer@v3
 
