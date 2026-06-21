@@ -116,12 +116,14 @@ jobs:
     if: ${{ needs.ContainerScan.result == 'success' &&  inputs.container_scan && inputs.image_ref != ''  }}
     needs: ['ContainerScan']
     runs-on: ubuntu-latest
+    env:
+      IMAGE_REF: ${{ inputs.image_ref }}
     steps:
       - uses: sigstore/cosign-installer@v3
 
       - name: Sign image
         run: |
-          cosign sign --yes ${{ inputs.image_ref }}
+          cosign sign --yes "$IMAGE_REF"
 
     
   Summary:

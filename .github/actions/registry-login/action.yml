@@ -75,29 +75,35 @@ runs:
     - name: Determine GCP Service Account
       if: contains(inputs.image_ref, 'docker.pkg.dev')
       shell: bash
+      env:
+        IMAGE_REF: ${{ inputs.image_ref }}
+        GCP_PROJECT_SHARED: ${{ inputs.gcp_project_shared }}
+        GCP_SA_SHARED: ${{ inputs.gcp_sa_shared }}
+        GCP_PROJECT_DEV: ${{ inputs.gcp_project_dev }}
+        GCP_SA_DEV: ${{ inputs.gcp_sa_dev }}
+        GCP_PROJECT_STG: ${{ inputs.gcp_project_stg }}
+        GCP_SA_STG: ${{ inputs.gcp_sa_stg }}
+        GCP_PROJECT_PRD: ${{ inputs.gcp_project_prd }}
+        GCP_SA_PRD: ${{ inputs.gcp_sa_PRD }} # Pastikan casing sesuai nama input Anda (PRD/prd)
       run: |
-        if [[ -n "${{ inputs.gcp_project_shared }}" && "${{ inputs.image_ref }}" == *"${{ inputs.gcp_project_shared }}"* ]]; then
+        if [[ -n "$GCP_PROJECT_SHARED" && "$IMAGE_REF" == *"$GCP_PROJECT_SHARED"* ]]; then
           echo "SA_JSON<<EOF" >> $GITHUB_ENV
-          echo "${{ inputs.gcp_sa_shared }}" >> $GITHUB_ENV
+          echo "$GCP_SA_SHARED" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-
-        elif [[ -n "${{ inputs.gcp_project_dev }}" && "${{ inputs.image_ref }}" == *"${{ inputs.gcp_project_dev }}"* ]]; then
+        elif [[ -n "$GCP_PROJECT_DEV" && "$IMAGE_REF" == *"$GCP_PROJECT_DEV"* ]]; then
           echo "SA_JSON<<EOF" >> $GITHUB_ENV
-          echo "${{ inputs.gcp_sa_dev }}" >> $GITHUB_ENV
+          echo "$GCP_SA_DEV" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-
-        elif [[ -n "${{ inputs.gcp_project_stg }}" && "${{ inputs.image_ref }}" == *"${{ inputs.gcp_project_stg }}"* ]]; then
+        elif [[ -n "$GCP_PROJECT_STG" && "$IMAGE_REF" == *"$GCP_PROJECT_STG"* ]]; then
           echo "SA_JSON<<EOF" >> $GITHUB_ENV
-          echo "${{ inputs.gcp_sa_stg }}" >> $GITHUB_ENV
+          echo "$GCP_SA_STG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-
-        elif [[ -n "${{ inputs.gcp_project_prd }}" && "${{ inputs.image_ref }}" == *"${{ inputs.gcp_project_prd }}"* ]]; then
+        elif [[ -n "$GCP_PROJECT_PRD" && "$IMAGE_REF" == *"$GCP_PROJECT_PRD"* ]]; then
           echo "SA_JSON<<EOF" >> $GITHUB_ENV
-          echo "${{ inputs.gcp_sa_prd }}" >> $GITHUB_ENV
+          echo "$GCP_SA_PRD" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-
         else
-          echo "❌ Error: String image_ref not "
+          echo "❌ Error: String image_ref not matched with any GCP projects"
           exit 1
         fi
 
@@ -110,9 +116,11 @@ runs:
     - name: Login to GCP Artifact Registry
       if: contains(inputs.image_ref, 'docker.pkg.dev')
       shell: bash
+      env:
+        IMAGE_REF: ${{ inputs.image_ref }}
       run: |
-        REGISTRY_DOMAIN=$(echo "${{ inputs.image_ref }}" | cut -d'/' -f1)
-        gcloud auth configure-docker $REGISTRY_DOMAIN --quiet
+        REGISTRY_DOMAIN=$(echo "$IMAGE_REF" | cut -d'/' -f1)
+        gcloud auth configure-docker "$REGISTRY_DOMAIN" --quiet
 
     # GHCR LOGIN
     - name: Log in to GitHub Container Registry

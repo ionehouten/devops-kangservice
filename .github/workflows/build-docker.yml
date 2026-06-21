@@ -81,9 +81,12 @@ jobs:
           ghcr_domain: ${{ secrets.GHCR_DOMAIN }}
       
       - name: Build Env
+        env:
+          IMAGE_REF: ${{ inputs.image_ref }}
+          IMAGE_REF_LATEST: ${{ inputs.image_ref_latest }}
         run: |
-          echo "IMAGE_REF=${{ inputs.image_ref }}" >> build.env
-          echo "IMAGE_REF_LATEST=${{ inputs.image_ref_latest }}" >> build.env
+          echo "IMAGE_REF=$IMAGE_REF" >> build.env
+          echo "IMAGE_REF_LATEST=$IMAGE_REF_LATEST" >> build.env
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7

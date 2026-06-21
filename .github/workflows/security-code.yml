@@ -70,11 +70,13 @@ jobs:
       - name: Run Gitleaks
         id: gitleaks
         continue-on-error: true 
+        env:
+          GITLEAKS_CONFIG: ${{ inputs.gitleaks_config }}
         run: |
           CONFIG=""
 
-          if [ -n "${{ inputs.gitleaks_config }}" ]; then
-            CONFIG="--config=/repo/${{ inputs.gitleaks_config }}"
+          if [ -n "$GITLEAKS_CONFIG" ]; then
+            CONFIG="--config=/repo/$GITLEAKS_CONFIG"
           fi
           
           docker run --rm \
