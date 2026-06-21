@@ -71,6 +71,7 @@ jobs:
           
           # GHCR Variables
           ghcr_domain: ${{ secrets.GHCR_DOMAIN }}
+          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Scan Image
         id: trivy

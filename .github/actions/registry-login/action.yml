@@ -44,6 +44,8 @@ inputs:
   ghcr_domain:
     required: false
     default: "ghcr.io"
+  ghcr_token:
+    required: false
 
   # Docker Hub Credential
   dockerhub_username:
@@ -129,7 +131,7 @@ runs:
       with:
         registry: ${{ inputs.ghcr_domain }}
         username: ${{ github.actor }}
-        password: ${{ github.token }}
+        password: ${{ inputs.ghcr_token }}
 
     # DockerHub Login
     - name: Log in to Docker Hub
