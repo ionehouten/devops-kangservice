@@ -171,32 +171,41 @@ runs:
         registry_repo_dev:  ${{ inputs.registry_repo_dev }}
         registry_repo_stg:  ${{ inputs.registry_repo_stg }}
         registry_repo_prd:  ${{ inputs.registry_repo_prd }}
-
+  
     - name: Generate Job Summary
       shell: bash
+      env:
+        ENVIRONMENT: ${{ steps.prepare.outputs.ENVIRONMENT }}
+        PROVIDER: ${{ inputs.provider }}
+        OVERLAYS_PATH: ${{ steps.prepare.outputs.OVERLAYS_PATH }}
+        IMAGE_VERSION: ${{ steps.meta.outputs.version }}
+        IMAGE_SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+        IMAGE_REF: ${{ steps.meta.outputs.image_ref }}
+        IMAGE_REf_LATEST: ${{ steps.meta.outputs.image_ref_latest }}
       run: |
-        echo "## 🚀 Deployment Context Prepared" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
-        echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
-        echo "| **Environment** | \`${{ steps.prepare.outputs.ENVIRONMENT }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "| **Provider** | \`${{ inputs.provider }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "| **Deployment Target** | \`<CONFIG_PATH>/${{ steps.prepare.outputs.OVERLAYS_PATH }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "| **Version Tag** | \`${{ steps.meta.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "| **Short SHA** | \`${{ steps.meta.outputs.short_sha }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🚀 Deployment Context Prepared" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Parameter | Value |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| **Environment** | \`$ENVIRONMENT\` |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| **Provider** | \`$PROVIDER\` |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| **Deployment Target** | \`<CONFIG_PATH>/$OVERLAYS_PATH\` |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| **Version Tag** | \`$IMAGE_VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| **Short SHA** | \`$IMAGE_SHORT_SHA\` |" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
         
-        echo "> 💡 **Note:** Use \`<CONFIG_PATH>/${{ steps.prepare.outputs.OVERLAYS_PATH }}\` to match your GitOps tool strategy. For **Kustomize**, it represents the target overlay folder (e.g., \`overlays/${{ steps.prepare.outputs.OVERLAYS_PATH }}\`). For **Helm**, it represents your environment values file (e.g., \`values-${{ steps.prepare.outputs.OVERLAYS_PATH }}.yaml\`)." >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "> 💡 **Note:** Use \`<CONFIG_PATH>/$OVERLAYS_PATH\` to match your GitOps tool strategy. For **Kustomize**, it represents the target overlay folder (e.g., \`overlays/$OVERLAYS_PATH\`). For **Helm**, it represents your environment values file (e.g., \`values-$OVERLAYS_PATH.yaml\`)." >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
         
-        echo "### 📦 Target Container Repositories" >> $GITHUB_STEP_SUMMARY
-        echo "- **Primary Tag:** \`${{ steps.meta.outputs.image_ref }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Target Container Repositories" >> "$GITHUB_STEP_SUMMARY"
+        echo "- **Primary Tag:** \`$IMAGE_REF\`" >> "$GITHUB_STEP_SUMMARY"
         
-        if [[ -n "${{ steps.meta.outputs.image_ref_latest }}" ]]; then
-          echo "- **Latest Tag:** \`${{ steps.meta.outputs.image_ref_latest }}\`" >> $GITHUB_STEP_SUMMARY
+        if [[ -n "$IMAGE_REf_LATEST" ]]; then
+          echo "- **Latest Tag:** \`$IMAGE_REf_LATEST\`" >> "$GITHUB_STEP_SUMMARY"
         fi
         
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "---" >> $GITHUB_STEP_SUMMARY
-        echo "*Summary generated automatically by \`kangservice.cloud\` modules.*" >> $GITHUB_STEP_SUMMARY
-  
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "---" >> "$GITHUB_STEP_SUMMARY"
+        echo "*Summary generated automatically by \`kangservice.cloud\` modules.*" >> "$GITHUB_STEP_SUMMARY"
+
+   
