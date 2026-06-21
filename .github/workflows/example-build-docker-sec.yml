@@ -66,6 +66,7 @@ jobs:
     secrets: inherit
 
   Build:
+    if: ${{ !cancelled() }}
     needs: ['GlobalVariable', 'CodeScan']
     uses: ionehouten/devops-kangservice/.github/workflows/build-docker.yml@main
     with:
@@ -86,6 +87,7 @@ jobs:
     secrets: inherit
 
   SecurityReports:
+    if: ${{ !cancelled() }}
     needs: ['CodeScan','Build','ImageScan']
     uses: ionehouten/devops-kangservice/.github/workflows/security-reports.yml@main
     secrets: inherit

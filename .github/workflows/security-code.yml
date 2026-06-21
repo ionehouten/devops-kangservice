@@ -300,11 +300,16 @@ jobs:
       - name: Check results
         id: check
         run: |
-          echo "SecretScan=${{ needs.SecretScan.outputs.outcome }}"
-          echo "SAST=${{ needs.SAST.outputs.outcome }}"
-          echo "SonarQubeScan=${{ needs.SonarQubeScan.outputs.outcome }}"
-          echo "DependencyScan=${{ needs.DependencyScan.outputs.outcome }}"
-          echo "IaCScan=${{ needs.IaCScan.outputs.outcome }}"
+          echo "## 🔒 Security Code Reports" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "SecretScan=${{ needs.SecretScan.outputs.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "SAST=${{ needs.SAST.outputs.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "SonarQubeScan=${{ needs.SonarQubeScan.outputs.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "DependencyScan=${{ needs.DependencyScan.outputs.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "IaCScan=${{ needs.IaCScan.outputs.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
 
           RESULTS="
           ${{ needs.SecretScan.outputs.outcome }}
