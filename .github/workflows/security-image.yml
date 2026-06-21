@@ -84,15 +84,15 @@ jobs:
           output: trivy-image.sarif
           exit-code: 1
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: trivy-image-report
+          name: trivy-image-sarif
           path: trivy-image.sarif
 
       - name: Upload SARIF to Github Security
         if: ${{ always() && (github.event.repository.visibility == 'public' || inputs.ghas_enabled == true) }}
-        uses: github/codeql-action/upload-sarif@v3 
+        uses: github/codeql-action/upload-sarif@v4 
         with:
           sarif_file: trivy-image.sarif
 
@@ -104,7 +104,7 @@ jobs:
           output: 'sbom.spdx.json'
 
       - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: sbom.spdx.json
@@ -172,7 +172,7 @@ jobs:
           get_status_em() {
             case "$1" in
               success) echo "🟢 Success" ;;
-              failure) echo "🔴 Failure (Temuan Ditemukan!)" ;;
+              failure) echo "🔴 Failure (Vulnerability Ditemukan!)" ;;
               skipped|*) echo "⚪ Skipped / Not Run" ;;
             esac
           }

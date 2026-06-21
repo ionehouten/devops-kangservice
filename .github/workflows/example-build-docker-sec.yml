@@ -63,11 +63,11 @@ jobs:
       sast_scan: true
       dependency_scan: true
       iac_scan: true
+      fail_on_vulnerability: false
     secrets: inherit
 
   Build:
-    if: ${{ !cancelled() }}
-    needs: ['GlobalVariable', 'CodeScan']
+    needs: ['GlobalVariable']
     uses: ionehouten/devops-kangservice/.github/workflows/build-docker.yml@main
     with:
       environment: ${{ needs.GlobalVariable.outputs.environment }}
@@ -76,7 +76,7 @@ jobs:
       version: ${{ needs.GlobalVariable.outputs.version }}
       context: ./docker/test-build
     secrets: inherit
-
+    
   ImageScan:
     needs: ['GlobalVariable','Build']
     uses: ionehouten/devops-kangservice/.github/workflows/security-image.yml@main

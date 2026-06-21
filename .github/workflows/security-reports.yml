@@ -17,7 +17,7 @@ jobs:
       # Merge All SARIF files into one folder
       - name: Consolidate SARIF files
         run: |
-          mkdir -p security-image
+          mkdir -p security-reports
           
           # Copy and rename SARIF files
           find all-reports -name "*.sarif" -type f | while read file; do
@@ -43,7 +43,7 @@ jobs:
           ls -lh security-reports/
 
       - name: Upload consolidated reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-reports-all
           path: security-reports/
