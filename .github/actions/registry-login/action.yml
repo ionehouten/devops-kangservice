@@ -86,7 +86,7 @@ runs:
         GCP_PROJECT_STG: ${{ inputs.gcp_project_stg }}
         GCP_SA_STG: ${{ inputs.gcp_sa_stg }}
         GCP_PROJECT_PRD: ${{ inputs.gcp_project_prd }}
-        GCP_SA_PRD: ${{ inputs.gcp_sa_PRD }} # Pastikan casing sesuai nama input Anda (PRD/prd)
+        GCP_SA_PRD: ${{ inputs.gcp_sa_prd }} 
       run: |
         if [[ -n "$GCP_PROJECT_SHARED" && "$IMAGE_REF" == *"$GCP_PROJECT_SHARED"* ]]; then
           echo "SA_JSON<<EOF" >> $GITHUB_ENV
