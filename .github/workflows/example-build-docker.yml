@@ -54,7 +54,7 @@ jobs:
 
   Build:
     needs: ['GlobalVariable']
-    uses: ionehouten/devops-kangservice/.github/workflows/build-docker.yaml@main
+    uses: ionehouten/devops-kangservice/.github/workflows/build-docker.yml@main
     with:
       environment: ${{ needs.GlobalVariable.outputs.environment }}
       image_ref: ${{ needs.GlobalVariable.outputs.image_ref }}
