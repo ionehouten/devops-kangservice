@@ -915,7 +915,7 @@ graph TD
 | `gcp_project_prd` | `string` | No | GCP Project ID for the Production environment. |
 | `gcp_sa_prd` | `string` | No | GCP Service Account JSON for the Production environment. |
 | `ghcr_registry` | `string` | No | Target GHCR domain URL. Defaults to `ghcr.io`. |
-| `github_token` | `string` | No | ${{ secrets.GITHUB_TOKEN }} |
+| `ghcr_token` | `string` | No | ${{ secrets.GITHUB_TOKEN }} |
 
 ---
 ## Usage Example
@@ -955,7 +955,7 @@ jobs:
           
           # GHCR Variables
           ghcr_registry: "ghcr.io"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Trivy Scanner / Cosign
         run: |

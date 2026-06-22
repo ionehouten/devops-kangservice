@@ -25,7 +25,7 @@ To allow this workflow to authenticate with your cloud provider or registry, you
 > 💡 **Note:** All secrets are marked as `required: false` so you only need to configure the secrets relevant to your chosen provider (e.g., only set up GCP secrets if you are using GCP).
 
 ### GitHub Container Registry (GHCR)
-* `GITHUB_DOMAIN`: The target GHCR domain (e.g., `ghcr.io`).
+* `GHCR_DOMAIN`: The target GHCR domain (e.g., `ghcr.io`).
 
 ### Amazon Web Services (AWS)
 * `AWS_REGION`: The target AWS region (e.g., `ap-southeast-1`).

@@ -70,8 +70,8 @@ jobs:
           gcp_sa_shared: ${{ secrets.GCP_SA_SHARED }}
           
           # GHCR Variables
-          github_domain: ${{ secrets.GITHUB_DOMAIN }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ghcr_domain: ${{ secrets.GHCR_DOMAIN }}
+          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Scan Image
         id: trivy
@@ -147,8 +147,8 @@ jobs:
           gcp_sa_shared: ${{ secrets.GCP_SA_SHARED }}
           
           # GHCR Variables
-          github_domain: ${{ secrets.GITHUB_DOMAIN }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ghcr_domain: ${{ secrets.GHCR_DOMAIN }}
+          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: sigstore/cosign-installer@v3
 
