@@ -41,10 +41,10 @@ inputs:
 
   
   # GHCR Credential
-  ghcr_domain:
+  github_domain:
     required: false
     default: "ghcr.io"
-  ghcr_token:
+  github_token:
     required: false
 
   # Docker Hub Credential
@@ -129,9 +129,9 @@ runs:
       if: contains(inputs.image_ref, 'ghcr.io')
       uses: docker/login-action@v4
       with:
-        registry: ${{ inputs.ghcr_domain }}
+        registry: ${{ inputs.github_domain }}
         username: ${{ github.actor }}
-        password: ${{ inputs.ghcr_token }}
+        password: ${{ inputs.github_token }}
 
     # DockerHub Login
     - name: Log in to Docker Hub
