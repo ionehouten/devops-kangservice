@@ -1,5 +1,11 @@
 name: Security Scan Reports
 
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  security-events: write
+
 on:
   workflow_call:
 
@@ -49,22 +55,41 @@ jobs:
           path: security-reports/
           retention-days: 30
 
-      - name: Generate Job Summary
+      - name: Render GitHub Step Summary
         run: |
-          echo "## 🔒 Security Scan Reports" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔒 Security Scan Report Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Semua laporan sudah digabung dalam 1 artifact:" >> $GITHUB_STEP_SUMMARY
+          echo "All security scan reports have been consolidated into a single centralized artifact." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📥 Download:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Nama:** \`security-reports-all\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Isi:** Semua file SARIF dari scan" >> $GITHUB_STEP_SUMMARY
+
+
+          # ==========================================
+          # REVIEW WITH GHAS
+          # ==========================================
+          echo "### 🛡️ Review Findings with GitHub Advanced Security (GHAS)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Cara membuka file SARIF:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Install VS Code extension: **SARIF Viewer**" >> $GITHUB_STEP_SUMMARY
-          echo "2. Buka file \`.sarif\` di VS Code" >> $GITHUB_STEP_SUMMARY
-          echo "3. Lihat detail vulnerability per baris code" >> $GITHUB_STEP_SUMMARY
+          echo "> **Requires GitHub Advanced Security (GHAS) license.**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Files:" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "1. Open the **Security** → **Code scanning** tab." >> $GITHUB_STEP_SUMMARY
+          echo "2. Review each finding, including affected files, code locations, and remediation guidance." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ==========================================
+          # REVIEW WITH VS CODE
+          # ==========================================
+          echo "### 💻 Review Findings in Visual Studio Code" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Install the **SARIF Viewer** extension in Visual Studio Code." >> $GITHUB_STEP_SUMMARY
+          echo "2. Download and extract the **security-reports-all** artifact." >> $GITHUB_STEP_SUMMARY
+          echo "3. Open any **.sarif** file using the SARIF Viewer extension." >> $GITHUB_STEP_SUMMARY
+          echo "4. Navigate directly to the affected source code from the reported findings." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ==========================================
+          # ATTACHED REPORTS
+          # ==========================================
+          echo "### 📦 Included Report Files" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
           ls -1 security-reports/ >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

@@ -1,5 +1,13 @@
 name: Security Image Scan
 
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  security-events: write
+  pull-requests: write
+  issues: write
+
 on:
   workflow_call:
     inputs:
@@ -75,7 +83,7 @@ jobs:
           
       - name: Scan Image
         id: trivy
-        continue-on-error: true
+        continue-on-error: ${{ !inputs.fail_on_vulnerability }}
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "${{ inputs.image_ref }}"
@@ -218,12 +226,71 @@ jobs:
             echo "any_failed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Comment PR dengan Hasil Scan
-        if: ${{ steps.check.outputs.any_failed == 'true' && github.event_name == 'pull_request' }}
-        uses: thollander/actions-comment-pull-request@v3
+
+      # ==========================================
+      # Pipeline Status
+      # ==========================================
+
+      - name: Pipeline Completed Successfully
+        if: ${{ success() && github.event_name == 'pull_request' }}
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
+          header: pipeline-status
           message: |
-            ## ⚠️ 🔒 SECURITY CODE SCAN ALERT
-            Halo @${{ github.actor }}, pemindaian otomatis mendeteksi adanya celah keamanan pada commit ini.
-            
-            Silakan cek detail lengkapnya pada tab **Actions** -> **Security Container Scan Report** di repositori ini sebelum melakukan merge!
+            ## ✅ Pipeline Completed Successfully
+
+            All workflow checks completed successfully.
+
+            | Item | Value |
+            |------|-------|
+            | Workflow | `${{ github.workflow }}` |
+            | Run | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
+
+            The CI/CD pipeline completed successfully.
+
+      - name: Pipeline Failed
+        if: ${{ failure() && github.event_name == 'pull_request' }}
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: pipeline-status
+          message: |
+            ## ❌ Pipeline Failed
+
+            One or more workflow checks failed.
+
+            | Item | Value |
+            |------|-------|
+            | Workflow | `${{ github.workflow }}` |
+            | Run | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
+
+            Please review the workflow logs before merging this pull request.
+
+      # ==========================================
+      # Security Findings
+      # ==========================================
+
+      - name: Security Findings Detected
+        if: ${{ steps.check.outputs.any_failed == 'true' && github.event_name == 'pull_request' }}
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: security-findings
+          message: |
+            ## ⚠️ Security Findings Detected
+
+            Hi @${{ github.actor }},
+
+            The automated security scan detected one or more potential security vulnerabilities or exposed secrets.
+
+            Please review the **Security Code Scan Report** in the **Actions** tab and resolve the reported findings before merging this pull request.
+
+            | Item | Value |
+            |------|-------|
+            | Workflow | `${{ github.workflow }}` |
+            | Run | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
+
+      - name: Remove Security Findings Comment
+        if: ${{ steps.check.outputs.any_failed != 'true' && github.event_name == 'pull_request' }}
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: security-findings
+          delete: true

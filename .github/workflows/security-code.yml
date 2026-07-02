@@ -5,6 +5,8 @@ permissions:
   actions: read
   id-token: write
   security-events: write
+  pull-requests: write
+  issues: write
 
 on:
   workflow_call:
@@ -77,7 +79,7 @@ jobs:
       - uses: actions/checkout@v6
       - name: Run Gitleaks
         id: gitleaks
-        continue-on-error: true 
+        continue-on-error: ${{ !inputs.fail_on_vulnerability }} 
         env:
           GITLEAKS_CONFIG: ${{ inputs.gitleaks_config }}
         run: |
@@ -127,7 +129,7 @@ jobs:
       
       - name: Run Semgrep
         id: semgrep
-        continue-on-error: true
+        continue-on-error: ${{ !inputs.fail_on_vulnerability }}
         run: |
           semgrep scan \
             --config auto \
@@ -188,7 +190,7 @@ jobs:
 
       - name: Run Trivy FS
         id: trivyfs
-        continue-on-error: true
+        continue-on-error: ${{ !inputs.fail_on_vulnerability }}
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
@@ -270,7 +272,7 @@ jobs:
 
       - name: Run Checkov
         id: checkov
-        continue-on-error: true
+        continue-on-error: ${{ !inputs.fail_on_vulnerability }}
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: .
@@ -310,16 +312,38 @@ jobs:
       OUTCOME_IAC: ${{ needs.IaCScan.outputs.outcome }}
       FAIL_ON_VULN: ${{ inputs.fail_on_vulnerability }}
     steps:
+      
+      - name: Download Reports for Stats
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          path: security-reports
+
       - name: Generate Security Report Summary
         id: check
         run: |
-
+          # Helper untuk mengubah status job menjadi emoji
           get_status_em() {
             case "$1" in
               success) echo "🟢 Success" ;;
-              failure) echo "🔴 Failure (Vulnerability Ditemukan!)" ;;
+              failure) echo "🔴 Failure" ;;
               skipped|*) echo "⚪ Skipped / Not Run" ;;
             esac
+          }
+
+          # Helper untuk menghitung jumlah vulnerability di file SARIF menggunakan jq
+          count_sarif_vulnerabilities() {
+            local file_pattern="$1"
+            # Cari file sarif secara rekursif di folder download
+            local file_path=$(find security-reports -name "$file_pattern" -type f | head -n 1)
+            
+            if [ -f "$file_path" ]; then
+              # SARIF menyimpan temuan di dalam array .runs[].results[]
+              local count=$(jq '[.runs[].results[]?] | length' "$file_path" 2>/dev/null || echo "0")
+              echo "$count"
+            else
+              echo "-"
+            fi
           }
 
           STATUS_SECRET=$(get_status_em "$OUTCOME_SECRET")
@@ -328,12 +352,19 @@ jobs:
           STATUS_DEPENDENCY=$(get_status_em "$OUTCOME_DEPENDENCY")
           STATUS_IAC=$(get_status_em "$OUTCOME_IAC")
 
+          # Hitung statistik temuan asli dari file SARIF yang berhasil di-download
+          VULN_SECRET=$(count_sarif_vulnerabilities "gitleaks.sarif")
+          VULN_SAST=$(count_sarif_vulnerabilities "semgrep.sarif")
+          VULN_DEPENDENCY=$(count_sarif_vulnerabilities "trivy-fs.sarif")
+          VULN_IAC=$(count_sarif_vulnerabilities "checkov.sarif")
+
           ANY_FAILED="false"
           RESULTS="$OUTCOME_SECRET $OUTCOME_SAST $OUTCOME_SONAR $OUTCOME_DEPENDENCY $OUTCOME_IAC"
           if echo "$RESULTS" | grep -q failure; then
             ANY_FAILED="true"
           fi
 
+          # Mulai menulis Markdown ke Summary Page
           echo "## 🔒 Security Code Scan Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
@@ -344,22 +375,18 @@ jobs:
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Security Scanner | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔑 Secret Scan (Gitleaks) | $STATUS_SECRET |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🛡️ SAST Scan (Semgrep) | $STATUS_SAST |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🦊 SonarQube Scan | $STATUS_SONAR |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📦 Dependency Scan (Trivy) | $STATUS_DEPENDENCY |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🏗️ IaC Scan (Checkov) | $STATUS_IAC |" >> $GITHUB_STEP_SUMMARY
+          # Tabel yang kini dilengkapi kolom "Temuan (Vulnerabilities)"
+          echo "| Security Scanner | Status | Temuan (Vulnerabilities) |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :---: | :---: |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔑 Secret Scan (Gitleaks) | $STATUS_SECRET | **$VULN_SECRET** |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🛡️ SAST Scan (Semgrep) | $STATUS_SAST | **$VULN_SAST** |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Dependency Scan (Trivy) | $STATUS_DEPENDENCY | **$VULN_DEPENDENCY** |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏗️ IaC Scan (Checkov) | $STATUS_IAC | **$VULN_IAC** |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🦊 SonarQube Scan | $STATUS_SONAR | *Lihat di Sonar Dashboard* |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-
 
           if [ "$ANY_FAILED" = "true" ]; then
             echo "any_failed=true" >> $GITHUB_OUTPUT
-            
-            echo "### 🛠️ Langkah Penyelesaian" >> $GITHUB_STEP_SUMMARY
-            echo "1. Buka tab **Security** > **Code scanning** untuk melihat detail baris kode." >> $GITHUB_STEP_SUMMARY
-            echo "2. Periksa bagian **Artifacts** jika membutuhkan file `.sarif`." >> $GITHUB_STEP_SUMMARY
 
             if [ "$FAIL_ON_VULN" = "true" ]; then
               echo "::error title=🔒 Security Scan Failed::Workflow dihentikan karena fail_on_vulnerability diset true."
@@ -370,14 +397,72 @@ jobs:
           else
             echo "any_failed=false" >> $GITHUB_OUTPUT
           fi
-          
-      - name: Comment PR dengan Hasil Scan
-        if: ${{ steps.check.outputs.any_failed == 'true' && github.event_name == 'pull_request' }}
-        uses: thollander/actions-comment-pull-request@v3
+
+      # ==========================================
+      # Pipeline Status
+      # ==========================================
+
+      - name: Pipeline Completed Successfully
+        if: ${{ success() && github.event_name == 'pull_request' }}
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
+          header: pipeline-status
           message: |
-            ## ⚠️ 🔒 SECURITY CODE SCAN ALERT
-            Halo @${{ github.actor }}, pemindaian otomatis mendeteksi adanya celah keamanan atau rahasia (*secret*) yang bocor pada commit ini.
-            
-            Silakan cek detail lengkapnya pada tab **Actions** -> **Security Code Scan Report** di repositori ini sebelum melakukan merge!
+            ## ✅ Pipeline Completed Successfully
+
+            All workflow checks completed successfully.
+
+            | Item | Value |
+            |------|-------|
+            | Workflow | `${{ github.workflow }}` |
+            | Run | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
+
+            The CI/CD pipeline completed successfully.
+
+      - name: Pipeline Failed
+        if: ${{ failure() && github.event_name == 'pull_request' }}
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: pipeline-status
+          message: |
+            ## ❌ Pipeline Failed
+
+            One or more workflow checks failed.
+
+            | Item | Value |
+            |------|-------|
+            | Workflow | `${{ github.workflow }}` |
+            | Run | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
+
+            Please review the workflow logs before merging this pull request.
+
+      # ==========================================
+      # Security Findings
+      # ==========================================
+
+      - name: Security Findings Detected
+        if: ${{ steps.check.outputs.any_failed == 'true' && github.event_name == 'pull_request' }}
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: security-findings
+          message: |
+            ## ⚠️ Security Findings Detected
+
+            Hi @${{ github.actor }},
+
+            The automated security scan detected one or more potential security vulnerabilities or exposed secrets.
+
+            Please review the **Security Code Scan Report** in the **Actions** tab and resolve the reported findings before merging this pull request.
+
+            | Item | Value |
+            |------|-------|
+            | Workflow | `${{ github.workflow }}` |
+            | Run | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
+
+      - name: Remove Security Findings Comment
+        if: ${{ steps.check.outputs.any_failed != 'true' && github.event_name == 'pull_request' }}
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: security-findings
+          delete: true
   
